@@ -1,6 +1,14 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   MapContainer,
   TileLayer,
@@ -8,10 +16,12 @@ import {
   Circle,
   CircleMarker,
   Polygon,
+  Polyline,
   Popup,
   useMap,
+  useMapEvents,
 } from 'react-leaflet';
-import type { LatLngBounds, LeafletMouseEvent } from 'leaflet';
+import type { LeafletMouseEvent, Layer as LeafletLayer } from 'leaflet';
 import { ParsedNotam } from '@/types/notam';
 import {
   formatUtcDate as formatPopupDate,
@@ -21,26 +31,34 @@ import {
   getCategoryColor,
   FIR_SCALE_RADIUS_NM,
 } from '@/lib/notam-format';
-import { notamIntersectsBounds } from '@/lib/geometry';
-import RectangleSelector from './RectangleSelector';
+import KmlLayer from './KmlLayer';
 import SelectionToolbar from './SelectionToolbar';
+import {
+  Route,
+  buildCorridorPolygon,
+  ROUTE_BUFFER_NM,
+  ROUTE_BUFFER_KM,
+} from '@/lib/route-filter';
+import { getAviationIconSvg, type IconType } from '@/lib/aviation-icons';
 import 'leaflet/dist/leaflet.css';
 
 type LayerKey = 'circle' | 'polygon' | 'point' | 'multipoint';
+type KmlKey = 'vfr' | 'ifr' | 'navaids' | 'airports';
 
 interface NotamPopupProps {
   notam: ParsedNotam;
+  isMember: boolean;
+  onToggleSelect: (id: string) => void;
   extra?: ReactNode;
 }
 
-function NotamPopup({ notam, extra }: NotamPopupProps) {
+function NotamPopup({ notam, isMember, onToggleSelect, extra }: NotamPopupProps) {
   const altitude = formatAltitudeRange(notam);
   const scope = formatScope(notam.scope);
   const traffic = formatTraffic(notam.significance);
   const expires =
     notam.expires === 'PERM' ? 'PERM' : formatPopupDate(notam.expires);
   const eText = (notam.eItem || '').replace(/^E\)\s*/, '').trim();
-  const preview = eText.length > 220 ? eText.slice(0, 220).trimEnd() + '…' : eText;
 
   return (
     <div className="min-w-[240px] max-w-[320px] space-y-1.5 text-[12px] leading-snug">
@@ -60,8 +78,28 @@ function NotamPopup({ notam, extra }: NotamPopupProps) {
         )}
       </div>
 
-      {preview && (
-        <div className="text-gray-800 whitespace-pre-line">{preview}</div>
+      <label
+        className={`flex items-center gap-1.5 px-1.5 py-1 rounded cursor-pointer select-none text-[11px] ${
+          isMember
+            ? 'bg-blue-50 text-blue-800 border border-blue-200'
+            : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isMember}
+          onChange={() => onToggleSelect(notam.id)}
+          className="accent-blue-600"
+        />
+        <span className="font-semibold">
+          {isMember ? 'In selection (tap to remove)' : 'Add to selection'}
+        </span>
+      </label>
+
+      {eText && (
+        <div className="text-gray-800 whitespace-pre-line max-h-60 overflow-auto border border-gray-100 rounded p-1.5 bg-gray-50/50">
+          {eText}
+        </div>
       )}
 
       <div className="pt-1 border-t border-gray-200 space-y-0.5 text-[11px]">
@@ -131,8 +169,6 @@ function NotamPopup({ notam, extra }: NotamPopupProps) {
   );
 }
 
-// Local helper used only for rendering z-order. Selection-intent bboxes
-// live in `src/lib/geometry.ts`.
 function bboxArea(n: ParsedNotam): number {
   if (n.geometry?.type !== 'polygon') return 0;
   const verts = n.geometry.vertices;
@@ -161,50 +197,74 @@ const LAYER_META: Array<{
   { key: 'multipoint', label: 'Multipoints', swatch: '#ef4444' },
 ];
 
-function MapController({ selectedNotam }: { selectedNotam: ParsedNotam | null }) {
+const KML_META: Array<{
+  key: KmlKey;
+  label: string;
+  url: string;
+  color: string;
+  iconType: IconType;
+}> = [
+  { key: 'airports', label: 'Airports', url: '/kml/airports.kml', color: '#dc2626', iconType: 'airport' },
+  { key: 'navaids', label: 'Navaids', url: '/kml/navaids.kml', color: '#10b981', iconType: 'vor' },
+  { key: 'vfr', label: 'VFR waypoints', url: '/kml/vfr_waypoints.kml', color: '#8b5cf6', iconType: 'vfr' },
+  { key: 'ifr', label: 'IFR waypoints', url: '/kml/ifr_waypoints.kml', color: '#f97316', iconType: 'ifr' },
+];
+
+function MapController({
+  selectedNotam,
+  popupRefs,
+}: {
+  selectedNotam: ParsedNotam | null;
+  popupRefs: React.MutableRefObject<Map<string, LeafletLayer>>;
+}) {
   const map = useMap();
 
   useEffect(() => {
-    if (selectedNotam && selectedNotam.geometry) {
-      const geo = selectedNotam.geometry;
-      if (geo.type === 'point' || geo.type === 'circle') {
-        map.flyTo([geo.lat, geo.lon], 9, { duration: 0.5 });
-      } else if (geo.type === 'polygon') {
-        const bounds = L.latLngBounds(geo.vertices);
-        map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
-      } else if (geo.type === 'multipoint') {
-        const bounds = L.latLngBounds(geo.points);
-        map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
-      }
+    if (!selectedNotam || !selectedNotam.geometry) return;
+    const geo = selectedNotam.geometry;
+    if (geo.type === 'point' || geo.type === 'circle') {
+      map.flyTo([geo.lat, geo.lon], 9, { duration: 0.5 });
+    } else if (geo.type === 'polygon') {
+      const bounds = L.latLngBounds(geo.vertices);
+      map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
+    } else if (geo.type === 'multipoint') {
+      const bounds = L.latLngBounds(geo.points);
+      map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
     }
-  }, [selectedNotam, map]);
+    // Open the matching popup once the pan/zoom starts. Slight delay lets
+    // Leaflet finish repositioning so the popup anchors correctly.
+    const id = setTimeout(() => {
+      const layer = popupRefs.current.get(selectedNotam.id);
+      layer?.openPopup?.();
+    }, 250);
+    return () => clearTimeout(id);
+  }, [selectedNotam, map, popupRefs]);
 
   return null;
 }
 
-// Import L only when needed
+function MapBackgroundClick({ onClick }: { onClick: () => void }) {
+  useMapEvents({
+    click: () => onClick(),
+  });
+  return null;
+}
+
 let L: any = null;
 
 interface MapViewProps {
   notams: ParsedNotam[];
-  onSelectNotam: (notam: ParsedNotam) => void;
+  onSelectNotam: (notam: ParsedNotam | null) => void;
   selectedNotam: ParsedNotam | null;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
-  onBulkAdd: (ids: string[]) => void;
   onClearSelection: () => void;
-  selectMode: boolean;
-  onToggleSelectMode: () => void;
+  route: Route | null;
 }
 
-// Decide whether a click should toggle multi-select membership or focus
-// the detail panel. Select-mode or Shift/Cmd makes it a toggle.
-function isToggleClick(
-  e: LeafletMouseEvent,
-  selectMode: boolean,
-): boolean {
+function isToggleClick(e: LeafletMouseEvent): boolean {
   const oe = e.originalEvent;
-  return selectMode || !!oe.shiftKey || !!oe.metaKey || !!oe.ctrlKey;
+  return !!oe.shiftKey || !!oe.metaKey || !!oe.ctrlKey;
 }
 
 interface LayerPanelProps {
@@ -212,57 +272,116 @@ interface LayerPanelProps {
   visible: Record<LayerKey, boolean>;
   onToggle: (key: LayerKey) => void;
   onSetAll: (value: boolean) => void;
+  kmlVisible: Record<KmlKey, boolean>;
+  kmlCounts: Record<KmlKey, number>;
+  onToggleKml: (key: KmlKey) => void;
 }
 
-function LayerPanel({ counts, visible, onToggle, onSetAll }: LayerPanelProps) {
+function LayerPanel({
+  counts,
+  visible,
+  onToggle,
+  onSetAll,
+  kmlVisible,
+  kmlCounts,
+  onToggleKml,
+}: LayerPanelProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div
-      className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur border border-gray-200 rounded-lg shadow-md text-xs"
-      // Stop map drag/scroll/click from firing when interacting with the panel.
+      className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur border border-gray-200 rounded-lg shadow-md text-xs max-w-[220px]"
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-gray-100 hover:bg-gray-50 rounded-t-lg"
+      >
         <span className="font-semibold text-gray-700">Layers</span>
-        <div className="flex gap-2 text-[10px]">
-          <button
-            className="text-blue-600 hover:underline"
-            onClick={() => onSetAll(true)}
-          >
-            all
-          </button>
-          <button
-            className="text-gray-500 hover:underline"
-            onClick={() => onSetAll(false)}
-          >
-            none
-          </button>
-        </div>
-      </div>
-      <div className="p-2 space-y-1">
-        {LAYER_META.map(({ key, label, swatch }) => (
-          <label
-            key={key}
-            className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 cursor-pointer"
-          >
-            <input
-              type="checkbox"
-              className="accent-blue-600"
-              checked={visible[key]}
-              onChange={() => onToggle(key)}
-            />
-            <span
-              className="inline-block w-3 h-3 rounded-sm border border-gray-300"
-              style={{ backgroundColor: swatch, opacity: 0.5 }}
-            />
-            <span className="text-gray-700">{label}</span>
-            <span className="ml-auto text-gray-400 tabular-nums">
-              {counts[key]}
+        <span className="text-gray-400 text-[10px]">
+          {collapsed ? '▸' : '▾'}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <>
+          <div className="px-3 py-1.5 flex items-center justify-between border-b border-gray-100">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+              NOTAMs
             </span>
-          </label>
-        ))}
-      </div>
+            <div className="flex gap-2 text-[10px]">
+              <button
+                className="text-blue-600 hover:underline"
+                onClick={() => onSetAll(true)}
+              >
+                all
+              </button>
+              <button
+                className="text-gray-500 hover:underline"
+                onClick={() => onSetAll(false)}
+              >
+                none
+              </button>
+            </div>
+          </div>
+          <div className="p-2 space-y-1">
+            {LAYER_META.map(({ key, label, swatch }) => (
+              <label
+                key={key}
+                className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  className="accent-blue-600"
+                  checked={visible[key]}
+                  onChange={() => onToggle(key)}
+                />
+                <span
+                  className="inline-block w-3 h-3 rounded-sm border border-gray-300"
+                  style={{ backgroundColor: swatch, opacity: 0.5 }}
+                />
+                <span className="text-gray-700">{label}</span>
+                <span className="ml-auto text-gray-400 tabular-nums">
+                  {counts[key]}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div className="px-3 py-1.5 border-t border-b border-gray-100">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+              Reference
+            </span>
+          </div>
+          <div className="p-2 space-y-1">
+            {KML_META.map(({ key, label, iconType }) => (
+              <label
+                key={key}
+                className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  className="accent-blue-600"
+                  checked={kmlVisible[key]}
+                  onChange={() => onToggleKml(key)}
+                />
+                <span
+                  className="inline-flex items-center justify-center w-5 h-5 shrink-0"
+                  aria-hidden
+                  dangerouslySetInnerHTML={{ __html: getAviationIconSvg(iconType) }}
+                />
+                <span className="text-gray-700">{label}</span>
+                <span className="ml-auto text-gray-400 tabular-nums">
+                  {kmlCounts[key] || ''}
+                </span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -273,10 +392,8 @@ export default function MapView({
   selectedNotam,
   selectedIds,
   onToggleSelect,
-  onBulkAdd,
   onClearSelection,
-  selectMode,
-  onToggleSelectMode,
+  route,
 }: MapViewProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState<Record<LayerKey, boolean>>({
@@ -285,38 +402,49 @@ export default function MapView({
     point: true,
     multipoint: true,
   });
+  const [kmlVisible, setKmlVisible] = useState<Record<KmlKey, boolean>>({
+    vfr: false,
+    ifr: false,
+    navaids: false,
+    airports: false,
+  });
+  const [kmlCounts, setKmlCounts] = useState<Record<KmlKey, number>>({
+    vfr: 0,
+    ifr: 0,
+    navaids: 0,
+    airports: 0,
+  });
 
-  const selectedNotams = useMemo(
-    () => notams.filter((n) => selectedIds.has(n.id)),
-    [notams, selectedIds],
-  );
+  const popupRefs = useRef<Map<string, LeafletLayer>>(new Map());
 
   const handleShapeClick = (notam: ParsedNotam, e: LeafletMouseEvent) => {
-    if (isToggleClick(e, selectMode)) {
+    if (isToggleClick(e)) {
       onToggleSelect(notam.id);
     } else {
       onSelectNotam(notam);
     }
   };
 
-  const handleRectSelect = (bounds: LatLngBounds) => {
-    const hits: string[] = [];
-    for (const key of ['circle', 'polygon', 'point', 'multipoint'] as LayerKey[]) {
-      if (!visible[key]) continue;
-      for (const n of notams) {
-        if (n.geometry?.type !== key) continue;
-        if (notamIntersectsBounds(n, bounds)) hits.push(n.id);
-      }
-    }
-    if (hits.length > 0) onBulkAdd(hits);
-  };
+  const registerRef = useCallback(
+    (id: string, layer: LeafletLayer | null) => {
+      if (layer) popupRefs.current.set(id, layer);
+      else popupRefs.current.delete(id);
+    },
+    [],
+  );
+
+  const handleKmlCount = useCallback(
+    (key: KmlKey, count: number) => {
+      setKmlCounts((prev) =>
+        prev[key] === count ? prev : { ...prev, [key]: count },
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
-    // Lazy load leaflet only on client
     if (typeof window !== 'undefined') {
       L = require('leaflet');
-
-      // Fix icon URLs
       if (L?.Icon?.Default) {
         const DefaultIcon = L.Icon.Default;
         DefaultIcon.prototype.options.iconUrl = '/leaflet/marker-icon.png';
@@ -327,12 +455,6 @@ export default function MapView({
     setMounted(true);
   }, []);
 
-  // Group by geometry type so we can render in a fixed z-order and count.
-  // Within each type, sort so *smaller* shapes render last (Leaflet paints in
-  // render order, so last-rendered = top of stack = catches clicks first).
-  // Big circles that fully contain small ones otherwise steal every click
-  // inside them — even when their fill is transparent, the SVG path still
-  // intercepts pointer events.
   const grouped = useMemo(() => {
     const g: Record<LayerKey, ParsedNotam[]> = {
       circle: [],
@@ -345,22 +467,15 @@ export default function MapView({
       g[n.geometry.type].push(n);
     }
 
-    // Sort circles: huge FIR-scale ones first (they render as small dots but
-    // should sit at the bottom conceptually), then by descending radius so the
-    // smallest normal circle ends up on top.
     g.circle.sort((a, b) => {
       if (a.geometry?.type !== 'circle' || b.geometry?.type !== 'circle') return 0;
       const ra = a.geometry.radiusNm;
       const rb = b.geometry.radiusNm;
-      // Clamp FIR-scale to 0 so it sinks to the bottom of the sort, then
-      // bubbles back to the top via the descending sort — i.e. largest real
-      // circle first, smallest last, FIR-scale dots painted on top of them.
       const sa = ra >= FIR_SCALE_RADIUS_NM ? -1 : ra;
       const sb = rb >= FIR_SCALE_RADIUS_NM ? -1 : rb;
       return sb - sa;
     });
 
-    // Polygons: sort by bounding-box area (desc) so smaller ones sit on top.
     g.polygon.sort((a, b) => bboxArea(b) - bboxArea(a));
 
     return g;
@@ -380,6 +495,17 @@ export default function MapView({
     return <div className="flex-1 bg-gray-100 animate-pulse" />;
   }
 
+  const renderPopupInner = (notam: ParsedNotam, extra?: ReactNode) => (
+    <Popup>
+      <NotamPopup
+        notam={notam}
+        isMember={selectedIds.has(notam.id)}
+        onToggleSelect={onToggleSelect}
+        extra={extra}
+      />
+    </Popup>
+  );
+
   const renderCircle = (notam: ParsedNotam) => {
     if (notam.geometry?.type !== 'circle') return null;
     const color = getCategoryColor(notam.category);
@@ -387,22 +513,8 @@ export default function MapView({
     const isMember = selectedIds.has(notam.id);
     const weight = isMember ? 3 : isFocused ? 2.5 : 1;
     const { lat, lon, radiusNm } = notam.geometry;
-    const popup = selectMode ? null : (
-      <Popup>
-        <NotamPopup
-          notam={notam}
-          extra={
-            <>
-              <span className="text-gray-500">Radius:</span>{' '}
-              <span className="font-mono text-gray-900">{radiusNm} NM</span>
-            </>
-          }
-        />
-      </Popup>
-    );
 
     if (radiusNm >= FIR_SCALE_RADIUS_NM) {
-      // FIR-scale: show as a small marker so it doesn't paint over everything.
       return (
         <CircleMarker
           key={`c-${notam.id}`}
@@ -415,8 +527,14 @@ export default function MapView({
             weight,
           }}
           eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+          ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
         >
-          {popup}
+          {renderPopupInner(notam, (
+            <>
+              <span className="text-gray-500">Radius:</span>{' '}
+              <span className="font-mono text-gray-900">{radiusNm} NM</span>
+            </>
+          ))}
         </CircleMarker>
       );
     }
@@ -436,8 +554,14 @@ export default function MapView({
           dashArray: isMember ? '6 4' : undefined,
         }}
         eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+        ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
       >
-        {popup}
+        {renderPopupInner(notam, (
+          <>
+            <span className="text-gray-500">Radius:</span>{' '}
+            <span className="font-mono text-gray-900">{radiusNm} NM</span>
+          </>
+        ))}
       </Circle>
     );
   };
@@ -461,20 +585,14 @@ export default function MapView({
           dashArray: isMember ? '6 4' : undefined,
         }}
         eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+        ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
       >
-        {!selectMode && (
-          <Popup>
-            <NotamPopup
-              notam={notam}
-              extra={
-                <>
-                  <span className="text-gray-500">Vertices:</span>{' '}
-                  <span className="font-mono text-gray-900">{vertexCount}</span>
-                </>
-              }
-            />
-          </Popup>
-        )}
+        {renderPopupInner(notam, (
+          <>
+            <span className="text-gray-500">Vertices:</span>{' '}
+            <span className="font-mono text-gray-900">{vertexCount}</span>
+          </>
+        ))}
       </Polygon>
     );
   };
@@ -500,22 +618,21 @@ export default function MapView({
               weight,
             }}
             eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+            ref={
+              idx === 0
+                ? (instance) =>
+                    registerRef(notam.id, instance as unknown as LeafletLayer | null)
+                : undefined
+            }
           >
-            {!selectMode && (
-              <Popup>
-                <NotamPopup
-                  notam={notam}
-                  extra={
-                    <>
-                      <span className="text-gray-500">Point:</span>{' '}
-                      <span className="font-mono text-gray-900">
-                        {idx + 1} of {points.length}
-                      </span>
-                    </>
-                  }
-                />
-              </Popup>
-            )}
+            {renderPopupInner(notam, (
+              <>
+                <span className="text-gray-500">Point:</span>{' '}
+                <span className="font-mono text-gray-900">
+                  {idx + 1} of {points.length}
+                </span>
+              </>
+            ))}
           </CircleMarker>
         ))}
       </Fragment>
@@ -543,12 +660,9 @@ export default function MapView({
           <Marker
             position={[lat, lon]}
             eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+            ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
           >
-            {!selectMode && (
-              <Popup>
-                <NotamPopup notam={notam} />
-              </Popup>
-            )}
+            {renderPopupInner(notam)}
           </Marker>
         </Fragment>
       );
@@ -558,12 +672,9 @@ export default function MapView({
         key={`p-${notam.id}`}
         position={[lat, lon]}
         eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
+        ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
       >
-        {!selectMode && (
-          <Popup>
-            <NotamPopup notam={notam} />
-          </Popup>
-        )}
+        {renderPopupInner(notam)}
       </Marker>
     );
   };
@@ -581,24 +692,98 @@ export default function MapView({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
-        <MapController selectedNotam={selectedNotam} />
+        <MapController selectedNotam={selectedNotam} popupRefs={popupRefs} />
+        <MapBackgroundClick onClick={() => onSelectNotam(null)} />
 
-        {/* Render order (bottom → top): circles → polygons → multipoints → points.
-            Leaflet paints later children above earlier ones, so smaller shapes
-            aren't hidden under the big FIR-radius circles. */}
+        {KML_META.map(({ key, url, iconType }) =>
+          kmlVisible[key] ? (
+            <KmlLayer
+              key={key}
+              url={url}
+              iconType={iconType}
+              onCountLoaded={(count) => handleKmlCount(key, count)}
+            />
+          ) : null,
+        )}
+
+        {route && route.points.length === 1 && (
+          <>
+            <Circle
+              center={[route.points[0].lat, route.points[0].lon]}
+              radius={ROUTE_BUFFER_KM * 1000}
+              pathOptions={{
+                color: '#2563eb',
+                weight: 1,
+                opacity: 0.5,
+                fillColor: '#2563eb',
+                fillOpacity: 0.12,
+                interactive: false,
+              }}
+            />
+            <CircleMarker
+              center={[route.points[0].lat, route.points[0].lon]}
+              radius={4}
+              pathOptions={{
+                color: '#1d4ed8',
+                fillColor: '#ffffff',
+                fillOpacity: 1,
+                weight: 2,
+              }}
+              interactive={false}
+            />
+          </>
+        )}
+
+        {route && route.points.length >= 2 && (
+          <>
+            <Polygon
+              positions={buildCorridorPolygon(
+                route.points.map((p) => ({ lat: p.lat, lon: p.lon })),
+                ROUTE_BUFFER_NM,
+              )}
+              pathOptions={{
+                color: '#2563eb',
+                weight: 1,
+                opacity: 0.4,
+                fillColor: '#2563eb',
+                fillOpacity: 0.1,
+                interactive: false,
+              }}
+            />
+            <Polyline
+              positions={route.points.map((p) => [p.lat, p.lon])}
+              pathOptions={{
+                color: '#1d4ed8',
+                weight: 3,
+                opacity: 0.9,
+                interactive: false,
+              }}
+            />
+            {route.points.map((p, i) => (
+              <CircleMarker
+                key={`route-${i}`}
+                center={[p.lat, p.lon]}
+                radius={4}
+                pathOptions={{
+                  color: '#1d4ed8',
+                  fillColor: '#ffffff',
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+                interactive={false}
+              />
+            ))}
+          </>
+        )}
+
         {visible.circle && grouped.circle.map(renderCircle)}
         {visible.polygon && grouped.polygon.map(renderPolygon)}
         {visible.multipoint && grouped.multipoint.map(renderMultipoint)}
         {visible.point && grouped.point.map(renderPoint)}
-
-        <RectangleSelector active={selectMode} onRectSelect={handleRectSelect} />
       </MapContainer>
 
       <SelectionToolbar
         selectedCount={selectedIds.size}
-        selectedNotams={selectedNotams}
-        selectMode={selectMode}
-        onToggleSelectMode={onToggleSelectMode}
         onClear={onClearSelection}
       />
 
@@ -614,6 +799,9 @@ export default function MapView({
             multipoint: value,
           })
         }
+        kmlVisible={kmlVisible}
+        kmlCounts={kmlCounts}
+        onToggleKml={(k) => setKmlVisible((v) => ({ ...v, [k]: !v[k] }))}
       />
     </div>
   );

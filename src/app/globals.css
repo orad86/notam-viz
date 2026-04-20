@@ -50,6 +50,31 @@ html, body {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
 }
 
+/* Aviation-icon divIcons: strip default Leaflet divIcon chrome */
+.leaflet-div-icon.aviation-icon,
+.aviation-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Permanent label under each aviation symbol */
+.leaflet-tooltip.aviation-label {
+  background: rgba(255, 255, 255, 0.85);
+  border: 0;
+  box-shadow: none;
+  padding: 0 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.aviation-label::before {
+  display: none;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

@@ -7,15 +7,17 @@ import { downloadGpx } from '@/lib/export/gpx';
 import { downloadKml } from '@/lib/export/kml';
 
 interface Props {
-  selectedNotams: ParsedNotam[];
+  notams: ParsedNotam[];
   disabled?: boolean;
   compact?: boolean;
+  variant?: 'compact' | 'pill';
 }
 
 export default function ExportMenu({
-  selectedNotams,
+  notams,
   disabled,
   compact,
+  variant = 'compact',
 }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -30,14 +32,29 @@ export default function ExportMenu({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const isDisabled = disabled || selectedNotams.length === 0;
-  const count = selectedNotams.length;
+  const isDisabled = disabled || notams.length === 0;
+  const count = notams.length;
 
   const handle = (fn: (n: ParsedNotam[]) => void) => {
     if (isDisabled) return;
-    fn(selectedNotams);
+    fn(notams);
     setOpen(false);
   };
+
+  const triggerClass =
+    variant === 'pill'
+      ? `px-2 py-1 rounded border text-[11px] font-semibold transition ${
+          isDisabled
+            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+        }`
+      : `${
+          compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+        } rounded font-semibold transition ${
+          isDisabled
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+        }`;
 
   return (
     <div className="relative" ref={ref}>
@@ -45,15 +62,10 @@ export default function ExportMenu({
         type="button"
         onClick={() => !isDisabled && setOpen((v) => !v)}
         disabled={isDisabled}
-        className={`${
-          compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'
-        } rounded font-semibold transition ${
-          isDisabled
-            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 text-white hover:bg-blue-700'
-        }`}
+        className={triggerClass}
+        title={variant === 'pill' ? `Export current view (${count})` : undefined}
       >
-        Export {count > 0 ? `(${count})` : ''} ▾
+        {variant === 'pill' ? `⬇ ${count}` : `Export ${count > 0 ? `(${count})` : ''} ▾`}
       </button>
 
       {open && !isDisabled && (
@@ -61,6 +73,9 @@ export default function ExportMenu({
           className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded shadow-lg z-[500] text-sm overflow-hidden"
           onMouseDown={(e) => e.stopPropagation()}
         >
+          <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+            Export {count} NOTAM{count === 1 ? '' : 's'}
+          </div>
           <button
             type="button"
             onClick={() => handle(exportPdf)}

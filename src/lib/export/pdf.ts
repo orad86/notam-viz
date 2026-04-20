@@ -2,8 +2,6 @@ import { ParsedNotam } from '@/types/notam';
 import {
   formatUtcDate,
   formatAltitudeRange,
-  formatScope,
-  formatTraffic,
   getCategoryColor,
 } from '@/lib/notam-format';
 import { escapeHtml } from './download';
@@ -12,42 +10,21 @@ function eItemText(n: ParsedNotam): string {
   return (n.eItem || '').replace(/^E\)\s*/, '').replace(/E\)\s*/g, '').trim();
 }
 
-function geometryCell(n: ParsedNotam): string {
-  const g = n.geometry;
-  if (!g) return '—';
-  if (g.type === 'point') {
-    return `Point · ${g.lat.toFixed(3)}°, ${g.lon.toFixed(3)}°`;
-  }
-  if (g.type === 'circle') {
-    return `Circle · ${g.lat.toFixed(3)}°, ${g.lon.toFixed(3)}° · R=${g.radiusNm} NM`;
-  }
-  if (g.type === 'polygon') {
-    return `Polygon · ${g.vertices.length} vertices`;
-  }
-  if (g.type === 'multipoint') {
-    return `Multipoint · ${g.points.length} points`;
-  }
-  return '—';
-}
-
-function row(label: string, value: string): string {
-  return `
-    <div class="row">
-      <div class="label">${escapeHtml(label)}</div>
-      <div class="value">${escapeHtml(value)}</div>
-    </div>`;
-}
-
 function buildCard(n: ParsedNotam, idx: number, total: number): string {
   const color = getCategoryColor(n.category);
   const validFrom = formatUtcDate(n.effective);
   const validTo = n.expires === 'PERM' ? 'PERMANENT' : formatUtcDate(n.expires);
-  const scope = formatScope(n.scope) || '—';
-  const traffic = formatTraffic(n.significance) || '—';
-  const altitude = formatAltitudeRange(n) || '—';
-  const qCode = n.qCodeExplanation
-    ? `${n.qCode} — ${n.qCodeExplanation}`
-    : n.qCode;
+  const altitude = formatAltitudeRange(n);
+  const location = n.location?.trim();
+  const schedule = n.dLine?.trim();
+
+  const metaItems: string[] = [];
+  if (location) metaItems.push(`<span><b>LOC</b> ${escapeHtml(location)}</span>`);
+  if (altitude) metaItems.push(`<span><b>ALT</b> ${escapeHtml(altitude)}</span>`);
+  if (schedule) metaItems.push(`<span><b>SCHED</b> ${escapeHtml(schedule)}</span>`);
+  const metaLine = metaItems.length
+    ? `<div class="meta">${metaItems.join(' <em class="sep">·</em> ')}</div>`
+    : '';
 
   return `
   <article class="card">
@@ -65,24 +42,9 @@ function buildCard(n: ParsedNotam, idx: number, total: number): string {
       </div>
     </header>
 
-    <div class="meta">
-      ${row('FIR', n.fir)}
-      ${row('Location', n.location || '—')}
-      ${row('Scope', scope)}
-      ${row('Traffic', traffic)}
-      ${row('Altitude', altitude)}
-      ${row('Geometry', geometryCell(n))}
-      <div class="row span2">
-        <div class="label">Q-code</div>
-        <div class="value">${escapeHtml(qCode)}</div>
-      </div>
-      ${n.dLine ? `<div class="row span2"><div class="label">Schedule</div><div class="value">${escapeHtml(n.dLine)}</div></div>` : ''}
-    </div>
+    ${metaLine}
 
-    <div class="eitem">
-      <div class="label">E-Item</div>
-      <pre>${escapeHtml(eItemText(n))}</pre>
-    </div>
+    <pre class="eitem">${escapeHtml(eItemText(n))}</pre>
   </article>`;
 }
 
@@ -100,7 +62,7 @@ export function exportPdf(notams: ParsedNotam[]): void {
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     font-size: 10pt;
-    line-height: 1.4;
+    line-height: 1.45;
     color: #111827;
     margin: 0;
     padding: 0;
@@ -144,7 +106,7 @@ export function exportPdf(notams: ParsedNotam[]): void {
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     padding: 10px 12px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     page-break-inside: avoid;
     break-inside: avoid;
     background: #fff;
@@ -156,9 +118,7 @@ export function exportPdf(notams: ParsedNotam[]): void {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-    border-bottom: 1px dashed #e5e7eb;
-    padding-bottom: 6px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .title {
     display: flex;
@@ -206,40 +166,32 @@ export function exportPdf(notams: ParsedNotam[]): void {
   .validity .to.perm { color: #b91c1c; font-weight: 700; }
 
   .meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 4px 16px;
-    margin-bottom: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 4px 0;
+    font-size: 9pt;
+    color: #374151;
   }
-  .row { display: flex; gap: 6px; font-size: 9.5pt; }
-  .row.span2 { grid-column: 1 / -1; }
-  .label {
+  .meta b {
     color: #6b7280;
-    font-weight: 600;
-    min-width: 60px;
-    font-size: 8.5pt;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-right: 4px;
   }
-  .value { color: #111827; word-break: break-word; }
+  .meta .sep { color: #d1d5db; font-style: normal; }
 
   .eitem {
-    border-top: 1px dashed #e5e7eb;
-    padding-top: 6px;
-  }
-  .eitem .label {
-    display: block;
-    margin-bottom: 3px;
-  }
-  .eitem pre {
-    margin: 0;
+    margin: 6px 0 0;
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 9pt;
+    font-size: 9.5pt;
+    line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
     color: #1f2937;
     background: #f9fafb;
-    padding: 6px 8px;
+    padding: 8px 10px;
     border-radius: 4px;
     border-left: 3px solid #1d4ed8;
   }

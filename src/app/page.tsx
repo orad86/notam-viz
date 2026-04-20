@@ -1,21 +1,38 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ParsedNotam, NotamApiResponse } from '@/types/notam';
 import NotamList from '@/components/NotamList';
-import NotamDetail from '@/components/NotamDetail';
+import NotamFilterBar from '@/components/NotamFilterBar';
+import RouteInput from '@/components/RouteInput';
+import { useNotamFilter } from '@/lib/use-notam-filter';
+import {
+  Route,
+  RoutePointIndex,
+  buildRoutePointIndex,
+  notamMatchesRoute,
+} from '@/lib/route-filter';
+import { loadKmlPoints } from '@/lib/kml-layer';
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
+
+const EMPTY_INDEX: RoutePointIndex = {
+  byCode: new Map(),
+  all: [],
+};
 
 export default function Home() {
   const [notams, setNotams] = useState<ParsedNotam[]>([]);
   const [selectedNotam, setSelectedNotam] = useState<ParsedNotam | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectMode, setSelectMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [route, setRoute] = useState<Route | null>(null);
+  const [routeIndex, setRouteIndex] = useState<RoutePointIndex>(EMPTY_INDEX);
+
+  const filter = useNotamFilter(notams);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -26,106 +43,174 @@ export default function Home() {
     });
   }, []);
 
-  const bulkAdd = useCallback((ids: string[]) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.add(id);
-      return next;
-    });
-  }, []);
-
-  const invertVisible = useCallback((visibleIds: string[]) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of visibleIds) {
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
-  const toggleSelectMode = useCallback(() => setSelectMode((v) => !v), []);
-
-  const fetchNotams = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/notams');
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      const data: NotamApiResponse = await response.json();
-      setNotams(data.notams);
-      setLastFetched(new Date(data.fetchedAt).toLocaleTimeString());
-      // Drop any selected ids that are no longer present in the fresh data.
-      setSelectedIds((prev) => {
-        if (prev.size === 0) return prev;
-        const ids = new Set(data.notams.map((n) => n.id));
-        const next = new Set<string>();
-        prev.forEach((id) => {
-          if (ids.has(id)) next.add(id);
-        });
-        return next;
-      });
-      if (data.errors && data.errors.length > 0) {
-        setError(data.errors[0]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch NOTAMs');
-      setNotams([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchNotams();
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/notams');
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        const data: NotamApiResponse = await response.json();
+        if (cancelled) return;
+        setNotams(data.notams);
+        setSelectedIds((prev) => {
+          if (prev.size === 0) return prev;
+          const ids = new Set(data.notams.map((n) => n.id));
+          const next = new Set<string>();
+          prev.forEach((id) => {
+            if (ids.has(id)) next.add(id);
+          });
+          return next;
+        });
+        if (data.errors && data.errors.length > 0) setError(data.errors[0]);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to fetch NOTAMs');
+          setNotams([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      loadKmlPoints('/kml/airports.kml'),
+      loadKmlPoints('/kml/navaids.kml'),
+      loadKmlPoints('/kml/vfr_waypoints.kml'),
+      loadKmlPoints('/kml/ifr_waypoints.kml'),
+    ]).then(([airports, navaids, vfr, ifr]) => {
+      if (cancelled) return;
+      setRouteIndex(
+        buildRoutePointIndex([
+          { source: 'airport', points: airports },
+          { source: 'navaid', points: navaids },
+          { source: 'vfr', points: vfr },
+          { source: 'ifr', points: ifr },
+        ]),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedNotam(null);
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const finalList = useMemo(() => {
+    if (!route || route.points.length < 1) return filter.filtered;
+    return filter.filtered.filter((n) => notamMatchesRoute(n, route));
+  }, [filter.filtered, route]);
+
+  const isFocusedHidden =
+    !!selectedNotam && !finalList.some((n) => n.id === selectedNotam.id);
+
+  const focusedHiddenHint = isFocusedHidden && selectedNotam ? (
+    <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-3 py-1.5 text-[11px] flex items-center justify-between gap-2">
+      <span>
+        <strong className="font-mono">{selectedNotam.id}</strong> is hidden by current filters.
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          filter.clearFilters();
+          setRoute(null);
+        }}
+        className="px-2 py-0.5 bg-amber-600 text-white rounded font-semibold hover:bg-amber-700"
+      >
+        Reset
+      </button>
+    </div>
+  ) : null;
+
+  const routeBanner = route && route.points.length >= 1 ? (
+    <div className="bg-blue-600 text-white px-3 py-1.5 text-[11px] flex items-center justify-between gap-2">
+      <span>
+        ✈ Route · {finalList.length} NOTAM{finalList.length === 1 ? '' : 's'} affect
+      </span>
+      <button
+        type="button"
+        onClick={() => setRoute(null)}
+        className="px-2 py-0.5 bg-blue-700 rounded hover:bg-blue-800 font-semibold"
+      >
+        Clear
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
-      {/* Header */}
-      <header className="h-12 border-b border-gray-200 flex items-center justify-between px-6 bg-gradient-to-r from-blue-600 to-blue-700">
-        <div className="flex items-center gap-2">
-          <span className="text-white text-lg font-bold">✈ NOTAM Visualizer</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={fetchNotams}
-            disabled={loading}
-            className="text-white hover:text-blue-100 disabled:opacity-50 font-semibold text-sm"
-          >
-            {loading ? '⟳ Fetching...' : '⟳ Refresh'}
-          </button>
-          <span className="text-white text-sm font-medium">
-            {notams.length} NOTAMs
-          </span>
-          {lastFetched && (
-            <span className="text-blue-100 text-xs">{lastFetched} UTC</span>
-          )}
-        </div>
+      <header className="h-12 border-b border-gray-200 flex items-center px-3 md:px-6 bg-gradient-to-r from-blue-600 to-blue-700 gap-3">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="md:hidden text-white text-2xl leading-none px-1"
+          aria-label="Toggle NOTAM list"
+        >
+          ☰
+        </button>
+        <span className="text-white text-base md:text-lg font-bold">
+          ✈ NOTAM Visualizer
+        </span>
       </header>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
         <NotamList
-          notams={notams}
+          filtered={finalList}
+          totalCount={notams.length}
           onSelectNotam={setSelectedNotam}
           selectedNotam={selectedNotam}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
-          onBulkAdd={bulkAdd}
-          onInvert={invertVisible}
           onClear={clearSelection}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          filterBar={
+            <NotamFilterBar
+              searchText={filter.searchText}
+              setSearchText={filter.setSearchText}
+              category={filter.category}
+              setCategory={filter.setCategory}
+              activeOnly={filter.activeOnly}
+              setActiveOnly={filter.setActiveOnly}
+              sortBy={filter.sortBy}
+              setSortBy={filter.setSortBy}
+              timeWindow={filter.timeWindow}
+              setTimeWindow={filter.setTimeWindow}
+              hasActiveFilters={filter.hasActiveFilters}
+              clearFilters={filter.clearFilters}
+              filteredCount={finalList.length}
+              totalCount={filter.totalCount}
+              notamsForExport={finalList}
+            />
+          }
+          routeInput={
+            routeIndex.all.length > 0 ? (
+              <RouteInput index={routeIndex} route={route} setRoute={setRoute} />
+            ) : null
+          }
+          routeBanner={routeBanner}
+          focusedHiddenHint={focusedHiddenHint}
         />
 
-        {/* Map area */}
         <div className="flex-1 relative bg-gray-100 overflow-hidden">
           {error && (
-            <div className="absolute top-4 left-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
+            <div className="absolute top-4 left-4 right-4 md:right-auto md:max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
               <span className="font-semibold">Error:</span> {error}
             </div>
           )}
@@ -148,23 +233,15 @@ export default function Home() {
             </div>
           ) : (
             <MapView
-              notams={notams}
+              notams={finalList}
               onSelectNotam={setSelectedNotam}
               selectedNotam={selectedNotam}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
-              onBulkAdd={bulkAdd}
               onClearSelection={clearSelection}
-              selectMode={selectMode}
-              onToggleSelectMode={toggleSelectMode}
+              route={route}
             />
           )}
-
-          {/* Detail panel */}
-          <NotamDetail
-            notam={selectedNotam}
-            onClose={() => setSelectedNotam(null)}
-          />
         </div>
       </div>
     </div>

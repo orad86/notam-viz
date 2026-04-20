@@ -3,10 +3,26 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Completed in v0.3.0](#completed-in-v030)
 - [Testing](#testing)
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Completed in v0.3.0
+
+Shipped since v0.2.0 (2026-04):
+
+- **Data ops.** Daily GitHub Action (`.github/workflows/scrape.yml`) runs `scripts/scrape.ts` → parses → writes a single `notams:latest` key to Vercel KV. The Next.js API reads from KV with `s-maxage=3600, stale-while-revalidate=86400`. Upstream load is now 1 list + ~114 detail fetches per 24 h instead of per user request.
+- **Touch-first UI.** Sidebar becomes a slide-in drawer on `<md` with a hamburger in the header and backdrop-tap dismiss. Removed the heavy `NotamDetail` card — the Leaflet popup is the sole detail surface. Click-to-deselect on map background; ESC clears selection.
+- **Simplified sidebar.** Filter state lifted out of `NotamList` into [`src/lib/use-notam-filter.ts`](../src/lib/use-notam-filter.ts). New [`NotamFilterBar`](../src/components/NotamFilterBar.tsx) with search + count + sort popover + category chips + global time-window popover (`Now / 2h / 24h / 7d / custom`). Rows collapsed to one-line (dot · ID · title). Selection strip shows only count + Clear.
+- **Route planner.** New [`RouteInput`](../src/components/RouteInput.tsx) with autocomplete over all four bundled KMLs. [`src/lib/route-filter.ts`](../src/lib/route-filter.ts) resolves tokens → `RoutePoint[]`, runs haversine + point-to-segment distance checks, intersects NOTAM altitude bands (via `parseQLineAltitudeFt` in [`src/lib/altitude-parse.ts`](../src/lib/altitude-parse.ts)). Corridor is 1 km wide; single-point routes degrade to a 1 km radius circle. Polyline + corridor rendered on the map.
+- **Aviation reference layers.** Four bundled KMLs (`public/kml/airports.kml`, `navaids.kml`, `vfr_waypoints.kml`, `ifr_waypoints.kml`) parsed by [`src/lib/kml-layer.ts`](../src/lib/kml-layer.ts), rendered as Jeppesen-style SVG symbols via [`src/lib/aviation-icons.ts`](../src/lib/aviation-icons.ts) with permanent name tooltips. Layer panel gained a Reference section whose legend uses the same SVG symbols as the markers.
+- **Export UX.** [`ExportMenu`](../src/components/ExportMenu.tsx) generalized (`notams` prop, `variant: 'pill' | 'compact'`) and slotted into the filter bar as a ⬇ pill. Scope is the current view (filter + route applied) — no selection required. PDF layout trimmed to essentials (ID, validity, location, altitude, schedule, E-item) — Q-code, FIR, geometry, traffic, and scope removed per user preference.
+
+Removed in this release: the Select-mode toggle, `RectangleSelector`, and the large `NotamDetail` card.
+
+
 
 ## Testing
 
