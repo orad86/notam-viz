@@ -1,101 +1,118 @@
-import Image from "next/image";
+'use client';
+
+import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
+import { ParsedNotam, NotamApiResponse } from '@/types/notam';
+import NotamList from '@/components/NotamList';
+import NotamDetail from '@/components/NotamDetail';
+
+const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [notams, setNotams] = useState<ParsedNotam[]>([]);
+  const [selectedNotam, setSelectedNotam] = useState<ParsedNotam | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastFetched, setLastFetched] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const fetchNotams = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/notams');
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data: NotamApiResponse = await response.json();
+      setNotams(data.notams);
+      setLastFetched(new Date(data.fetchedAt).toLocaleTimeString());
+      if (data.errors && data.errors.length > 0) {
+        setError(data.errors[0]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch NOTAMs');
+      setNotams([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotams();
+  }, []);
+
+  return (
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      {/* Header */}
+      <header className="h-12 border-b border-gray-200 flex items-center justify-between px-6 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className="flex items-center gap-2">
+          <span className="text-white text-lg font-bold">✈ NOTAM Visualizer</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={fetchNotams}
+            disabled={loading}
+            className="text-white hover:text-blue-100 disabled:opacity-50 font-semibold text-sm"
+          >
+            {loading ? '⟳ Fetching...' : '⟳ Refresh'}
+          </button>
+          <span className="text-white text-sm font-medium">
+            {notams.length} NOTAMs
+          </span>
+          {lastFetched && (
+            <span className="text-blue-100 text-xs">{lastFetched} UTC</span>
+          )}
+        </div>
+      </header>
+
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <NotamList
+          notams={notams}
+          onSelectNotam={setSelectedNotam}
+          selectedNotam={selectedNotam}
+        />
+
+        {/* Map area */}
+        <div className="flex-1 relative bg-gray-100 overflow-hidden">
+          {error && (
+            <div className="absolute top-4 left-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
+              <span className="font-semibold">Error:</span> {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600 mb-4"></div>
+                <p className="text-gray-600">Loading NOTAMs...</p>
+              </div>
+            </div>
+          ) : notams.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500">
+                <p className="text-lg font-semibold mb-2">No NOTAMs found</p>
+                <p className="text-sm">
+                  Try refreshing or check the source website
+                </p>
+              </div>
+            </div>
+          ) : (
+            <MapView
+              notams={notams}
+              onSelectNotam={setSelectedNotam}
+              selectedNotam={selectedNotam}
+            />
+          )}
+
+          {/* Detail panel */}
+          <NotamDetail
+            notam={selectedNotam}
+            onClose={() => setSelectedNotam(null)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+      </div>
     </div>
   );
 }
