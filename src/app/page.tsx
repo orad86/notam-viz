@@ -207,7 +207,7 @@ export default function Home() {
         focusedHiddenHint={focusedHiddenHint}
       />
 
-      <div className="absolute top-12 left-0 right-0 bottom-0 md:left-80 bg-gray-100 overflow-hidden">
+      <div className="fixed top-12 left-0 right-0 bottom-0 md:left-80 bg-gray-100 overflow-hidden">
           {error && (
             <div className="absolute top-4 left-4 right-4 md:right-auto md:max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
               <span className="font-semibold">Error:</span> {error}

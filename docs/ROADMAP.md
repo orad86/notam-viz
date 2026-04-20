@@ -9,6 +9,10 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Fixed in v0.3.3
+
+- **Map area could shift upward and be clipped by the fixed header.** The map wrapper was `position: absolute top-12 bottom-0` inside the page root, which allowed its top/bottom offsets to resolve inconsistently when Leaflet called `invalidateSize` or the viewport re-measured. Switched to `position: fixed top-12 left-0 right-0 bottom-0 md:left-80` — anchored directly to the viewport, no ancestor relayout can move it.
+
 ## Fixed in v0.3.2
 
 - **Header could disappear on mobile, making the drawer unreachable.** The app header is now `position: fixed top-0 z-[10001]`, pinned above the drawer (which stays at `z-[9999]`). The ☰ hamburger is always tappable regardless of any viewport / browser-chrome quirk.
