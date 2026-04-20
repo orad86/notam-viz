@@ -79,6 +79,9 @@ export interface NotamDetails {
 }
 
 export interface ParsedNotam extends NotamDetails {
+  // Mirror of notamId, retained as the canonical key used throughout the UI
+  // (selection Sets, React list keys, list-row match by id).
+  id: string;
   subject: string; // Q-line subject (2-3 letters)
   geometry: NotamGeometry;
   category: NotamCategory;

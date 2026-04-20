@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { ParsedNotam, NotamApiResponse } from '@/types/notam';
 import NotamList from '@/components/NotamList';
 import NotamDetail from '@/components/NotamDetail';
@@ -11,9 +11,42 @@ const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 export default function Home() {
   const [notams, setNotams] = useState<ParsedNotam[]>([]);
   const [selectedNotam, setSelectedNotam] = useState<ParsedNotam | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const bulkAdd = useCallback((ids: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const invertVisible = useCallback((visibleIds: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of visibleIds) {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const toggleSelectMode = useCallback(() => setSelectMode((v) => !v), []);
 
   const fetchNotams = async () => {
     setLoading(true);
@@ -26,6 +59,16 @@ export default function Home() {
       const data: NotamApiResponse = await response.json();
       setNotams(data.notams);
       setLastFetched(new Date(data.fetchedAt).toLocaleTimeString());
+      // Drop any selected ids that are no longer present in the fresh data.
+      setSelectedIds((prev) => {
+        if (prev.size === 0) return prev;
+        const ids = new Set(data.notams.map((n) => n.id));
+        const next = new Set<string>();
+        prev.forEach((id) => {
+          if (ids.has(id)) next.add(id);
+        });
+        return next;
+      });
       if (data.errors && data.errors.length > 0) {
         setError(data.errors[0]);
       }
@@ -72,6 +115,11 @@ export default function Home() {
           notams={notams}
           onSelectNotam={setSelectedNotam}
           selectedNotam={selectedNotam}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onBulkAdd={bulkAdd}
+          onInvert={invertVisible}
+          onClear={clearSelection}
         />
 
         {/* Map area */}
@@ -103,6 +151,12 @@ export default function Home() {
               notams={notams}
               onSelectNotam={setSelectedNotam}
               selectedNotam={selectedNotam}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onBulkAdd={bulkAdd}
+              onClearSelection={clearSelection}
+              selectMode={selectMode}
+              onToggleSelectMode={toggleSelectMode}
             />
           )}
 
