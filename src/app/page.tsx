@@ -169,46 +169,45 @@ export default function Home() {
         </span>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative">
-        <NotamList
-          filtered={finalList}
-          totalCount={notams.length}
-          onSelectNotam={setSelectedNotam}
-          selectedNotam={selectedNotam}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onClear={clearSelection}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          filterBar={
-            <NotamFilterBar
-              searchText={filter.searchText}
-              setSearchText={filter.setSearchText}
-              category={filter.category}
-              setCategory={filter.setCategory}
-              activeOnly={filter.activeOnly}
-              setActiveOnly={filter.setActiveOnly}
-              sortBy={filter.sortBy}
-              setSortBy={filter.setSortBy}
-              timeWindow={filter.timeWindow}
-              setTimeWindow={filter.setTimeWindow}
-              hasActiveFilters={filter.hasActiveFilters}
-              clearFilters={filter.clearFilters}
-              filteredCount={finalList.length}
-              totalCount={filter.totalCount}
-              notamsForExport={finalList}
-            />
-          }
-          routeInput={
-            routeIndex.all.length > 0 ? (
-              <RouteInput index={routeIndex} route={route} setRoute={setRoute} />
-            ) : null
-          }
-          routeBanner={routeBanner}
-          focusedHiddenHint={focusedHiddenHint}
-        />
+      <NotamList
+        filtered={finalList}
+        totalCount={notams.length}
+        onSelectNotam={setSelectedNotam}
+        selectedNotam={selectedNotam}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        onClear={clearSelection}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        filterBar={
+          <NotamFilterBar
+            searchText={filter.searchText}
+            setSearchText={filter.setSearchText}
+            category={filter.category}
+            setCategory={filter.setCategory}
+            activeOnly={filter.activeOnly}
+            setActiveOnly={filter.setActiveOnly}
+            sortBy={filter.sortBy}
+            setSortBy={filter.setSortBy}
+            timeWindow={filter.timeWindow}
+            setTimeWindow={filter.setTimeWindow}
+            hasActiveFilters={filter.hasActiveFilters}
+            clearFilters={filter.clearFilters}
+            filteredCount={finalList.length}
+            totalCount={filter.totalCount}
+            notamsForExport={finalList}
+          />
+        }
+        routeInput={
+          routeIndex.all.length > 0 ? (
+            <RouteInput index={routeIndex} route={route} setRoute={setRoute} />
+          ) : null
+        }
+        routeBanner={routeBanner}
+        focusedHiddenHint={focusedHiddenHint}
+      />
 
-        <div className="flex-1 relative bg-gray-100 overflow-hidden">
+      <div className="flex-1 relative bg-gray-100 overflow-hidden md:ml-80">
           {error && (
             <div className="absolute top-4 left-4 right-4 md:right-auto md:max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
               <span className="font-semibold">Error:</span> {error}
@@ -242,7 +241,6 @@ export default function Home() {
               route={route}
             />
           )}
-        </div>
       </div>
     </div>
   );

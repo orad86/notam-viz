@@ -286,7 +286,9 @@ function LayerPanel({
   kmlCounts,
   onToggleKml,
 }: LayerPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  );
 
   return (
     <div

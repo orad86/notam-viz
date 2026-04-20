@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ParsedNotam } from '@/types/notam';
 import { getCategoryColor } from '@/lib/notam-format';
 
@@ -36,6 +37,11 @@ export default function NotamList({
   focusedHiddenHint,
 }: NotamListProps) {
   const rowRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!selectedNotam) return;
@@ -43,20 +49,23 @@ export default function NotamList({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [selectedNotam]);
 
-  return (
+  const content = (
     <>
       {isOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/30 z-40"
+          className="md:hidden fixed inset-x-0 bottom-0 top-12 bg-black/30 z-[9000]"
           onClick={onClose}
           aria-hidden
         />
       )}
 
       <aside
-        className={`bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden
-          fixed md:static inset-y-0 left-0 z-50
+        style={{ height: '100vh' }}
+        className={`bg-white border-r border-gray-200 flex flex-col
+          fixed z-[9999] left-0 top-0 md:top-12
+          md:!h-[calc(100vh-3rem)]
           w-[85%] max-w-sm md:w-80 md:max-w-none
+          shadow-xl md:shadow-none
           transform transition-transform duration-200
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
       >
@@ -167,4 +176,7 @@ export default function NotamList({
       </aside>
     </>
   );
+
+  if (!mounted) return null;
+  return createPortal(content, document.body);
 }

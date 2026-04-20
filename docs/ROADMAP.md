@@ -9,6 +9,10 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Fixed in v0.3.1
+
+- **Mobile drawer was invisible below the app header.** The NotamList drawer (`z-[60]` previously) was being painted under Leaflet's own panes and controls, which use z-indexes up to 1000. Bumped the drawer to `z-[9999]` and the backdrop to `z-[9000]`, and rendered both via `createPortal` to `document.body` so no ancestor containing block (flex row, `overflow-hidden`, etc.) can clip them. Explicit `height: 100vh` inline style + `md:!h-[calc(100vh-3rem)]` ensures the aside is full viewport on mobile and header-offset on desktop. Backdrop now starts at `top-12` so a ghost tap on the hamburger position doesn't accidentally close the drawer.
+
 ## Completed in v0.3.0
 
 Shipped since v0.2.0 (2026-04):
