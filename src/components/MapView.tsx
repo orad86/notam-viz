@@ -224,10 +224,10 @@ function MapController({
     const geo = selectedNotam.geometry;
     if (geo.type === 'point' || geo.type === 'circle') {
       map.flyTo([geo.lat, geo.lon], 9, { duration: 0.5 });
-    } else if (geo.type === 'polygon') {
+    } else if (geo.type === 'polygon' && L) {
       const bounds = L.latLngBounds(geo.vertices);
       map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
-    } else if (geo.type === 'multipoint') {
+    } else if (geo.type === 'multipoint' && L) {
       const bounds = L.latLngBounds(geo.points);
       map.fitBounds(bounds, { padding: [50, 50], duration: 0.5 });
     }
@@ -250,7 +250,11 @@ function MapBackgroundClick({ onClick }: { onClick: () => void }) {
   return null;
 }
 
-let L: any = null;
+// Leaflet is imported at runtime inside a useEffect (it touches `window`), so
+// the module is pulled in via `require` on mount. The type is the module
+// namespace; the cast keeps us honest at the `L.latLngBounds` / `L.Icon` call
+// sites below. Cleaned up during the MapView component split.
+let L: typeof import('leaflet') | null = null;
 
 interface MapViewProps {
   notams: ParsedNotam[];

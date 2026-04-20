@@ -1,6 +1,5 @@
 import type { NotamApiResponse } from '@/types/notam';
-
-const LATEST_KEY = 'notams:latest';
+import { KV_LATEST_KEY } from './config';
 
 function kvCreds() {
   const url = process.env.KV_REST_API_URL;
@@ -28,17 +27,17 @@ async function kvFetch(path: string, init?: RequestInit) {
 }
 
 export async function getLatestNotams(): Promise<NotamApiResponse | null> {
-  const { result } = await kvFetch(`/get/${encodeURIComponent(LATEST_KEY)}`);
+  const { result } = await kvFetch(`/get/${encodeURIComponent(KV_LATEST_KEY)}`);
   if (!result) return null;
   try {
     return JSON.parse(result) as NotamApiResponse;
   } catch (err) {
-    throw new Error(`KV value at ${LATEST_KEY} is not valid JSON: ${String(err)}`);
+    throw new Error(`KV value at ${KV_LATEST_KEY} is not valid JSON: ${String(err)}`);
   }
 }
 
 export async function setLatestNotams(payload: NotamApiResponse): Promise<void> {
-  await kvFetch(`/set/${encodeURIComponent(LATEST_KEY)}`, {
+  await kvFetch(`/set/${encodeURIComponent(KV_LATEST_KEY)}`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

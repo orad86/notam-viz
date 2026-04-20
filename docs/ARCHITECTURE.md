@@ -59,7 +59,7 @@ System architecture, module responsibilities, and end-to-end data flow for notam
               ParsedNotam[] → MapView + NotamList + filters + route
 ```
 
-**Deployment shape.** Standard Next.js 14 on Vercel. The API route is `runtime = 'nodejs'` with `revalidate = 3600` and `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. The scraper runs in GitHub Actions, not in the Vercel function — so Vercel deployments don't need Playwright or Chromium.
+**Deployment shape.** Standard Next.js 14 on Vercel. The API route is `runtime = 'nodejs'`; it reads request headers for per-IP rate-limiting so it's fully dynamic — ISR is not in play. All CDN caching is driven by `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. The scraper runs in GitHub Actions, not in the Vercel function — so Vercel deployments don't need Playwright or Chromium.
 
 **External dependencies.**
 - **Vercel KV / Upstash Redis** — single-key JSON store for the latest snapshot.
@@ -81,7 +81,7 @@ Two separate flows.
    - If `process.env.IAA_COOKIE_JAR` is set, use it unchanged (no Playwright).
    - Else reuse the module-scoped `cachedJar` if younger than `JAR_TTL_MS` (15 min).
    - Else mint a fresh jar via headless Chromium (welcome → list → one detail page, reload up to 3× past the Error 100 challenge).
-3. `fetchList(jar)` hits `GET /MobileAeroinfo/maiNotam.aspx`. WAF signatures (`<title>Error 100</title>`, body < `LIST_MIN_BYTES` = 20 000, empty `tr[onclick^="rowClicked"]`) throw `WafChallengeError`. The caller refreshes the jar once and retries.
+3. `fetchList(jar)` hits `GET /MobileAeroinfo/maiNotam.aspx`. `isListPageValid` accepts only responses that carry `tr[onclick="rowClicked(...)"]` rows; the negative signals (`<title>Error 100</title>`, `stormcaster.js` probe, body < `LIST_MIN_CHARS` = 20 000) are secondary. Rejection throws `WafChallengeError`; the caller refreshes the jar once and retries.
 4. `parseList` emits `{ rowID, notamId, location }[]` (~100-120 entries).
 5. `runPool(entries, worker, CONCURRENCY=4)` fans out detail fetches; each worker waits `jitter()` (200–500 ms), retries once on transient failure, re-mints jar once per scrape on WAF.
 6. `parseNotamBlock` ([src/lib/notam-parser.ts](../src/lib/notam-parser.ts)) turns each raw block into `ParsedNotam`:
@@ -107,14 +107,14 @@ Next.js App Router. Client entry point plus the one API route.
 
 - [src/app/layout.tsx](../src/app/layout.tsx) — root layout, Inter font, `<title>NOTAM Visualizer</title>`.
 - [src/app/page.tsx](../src/app/page.tsx) — client component. Orchestrates filter + route state, loads KML indices for the route autocomplete, fetches `/api/notams`, renders header + `NotamList` + `NotamFilterBar` + `RouteInput` + `MapView`.
-- [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'`, `revalidate = 3600`. Reads KV via `getLatestNotams()`.
+- [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'` (dynamic — reads headers for rate-limiting). Reads KV via `getLatestNotams()`; rate-limits via `checkRateLimit` from [src/lib/rate-limit.ts](../src/lib/rate-limit.ts); emits structured logs via [src/lib/log.ts](../src/lib/log.ts).
 - [src/app/globals.css](../src/app/globals.css) — Tailwind base + Leaflet/divIcon/aviation-label overrides.
 
 ### `src/lib/`
 
 Pure-TS library code (no React, no DOM unless marked `'use client'`).
 
-- [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) — scraping module. See [docs/SCRAPING.md](SCRAPING.md). Constants: `CONCURRENCY=4`, `JITTER_MS=200..500`, `DETAIL_MIN_BYTES=4000`, `LIST_MIN_BYTES=20000`, `JAR_TTL_MS=15 min`.
+- [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) — scraping module. See [docs/SCRAPING.md](SCRAPING.md). Constants: `CONCURRENCY=4`, `JITTER_MS=200..500`, `DETAIL_MIN_CHARS=4000`, `LIST_MIN_CHARS=20000`, `JAR_TTL_MS=15 min`. Exports `isListPageValid` / `isDetailPageValid` for positive-signal WAF detection.
 - [src/lib/notam-parser.ts](../src/lib/notam-parser.ts) — `parseNotamBlock`, `splitNotamBlocks`, `determineCategory`.
 - [src/lib/coord-parser.ts](../src/lib/coord-parser.ts) — `dmsToDec`, `dmToDecimal`, `parseCoordinatePair`, `parseQLineCoordinate`, `extractCoordinatesFromBody`.
 - [src/lib/qcode-decoder.ts](../src/lib/qcode-decoder.ts) — ICAO Q-code tables (`SUBJECT_CODES`, `CONDITION_CODES`), `decodeQCode`, `formatQCodeExplanation`.
@@ -128,7 +128,11 @@ Pure-TS library code (no React, no DOM unless marked `'use client'`).
 - [src/lib/kml-layer.ts](../src/lib/kml-layer.ts) — tiny KML point-placemark parser (`parseKmlPoints`) + cached URL loader (`loadKmlPoints`).
 - [src/lib/aviation-icons.ts](../src/lib/aviation-icons.ts) — inline SVG symbols (airport / VOR / VFR / IFR) + `getAviationIcon` (Leaflet `divIcon`) + `getAviationIconSvg` (raw HTML for the legend).
 - [src/lib/kv.ts](../src/lib/kv.ts) — thin Upstash REST client: `getLatestNotams`, `setLatestNotams`.
-- [src/lib/export/](../src/lib/export/) — `pdf.ts` (print-dialog HTML), `gpx.ts` (waypoints/tracks), `kml.ts` (placemarks), `download.ts` (Blob trigger + XML escaping + timestamp suffix).
+- [src/lib/config.ts](../src/lib/config.ts) — single source of truth for upstream URLs (`IAA_BASE`, `IAA_LIST_URL`, `iaaDetailUrl`), the KV key (`KV_LATEST_KEY`), and cache windows (`CACHE_MAX_AGE_SECONDS`, `CACHE_STALE_SECONDS`). Imported by the scraper, the API route, and `scripts/scrape.ts`.
+- [src/lib/log.ts](../src/lib/log.ts) — structured JSON-line logger. `log(level, event, fields)` emits one record per call to stdout (info/debug) or stderr (warn/error). `timer(event)` returns a closure that logs duration on invocation.
+- [src/lib/rate-limit.ts](../src/lib/rate-limit.ts) — `@upstash/ratelimit` sliding window (30/min per IP), fail-open on backend unavailability. `clientKeyFromRequest` derives the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
+- [src/lib/use-click-outside.ts](../src/lib/use-click-outside.ts) — React hook shared by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete.
+- [src/lib/export/](../src/lib/export/) — `pdf.ts` (print-dialog HTML), `gpx.ts` (waypoints/tracks), `kml.ts` (placemarks), `download.ts` (Blob trigger + XML/HTML escaping + timestamp suffix).
 
 ### `src/components/`
 
@@ -158,6 +162,12 @@ All `'use client'`.
 ### `.github/workflows/`
 
 - [.github/workflows/scrape.yml](../.github/workflows/scrape.yml) — daily cron + `workflow_dispatch` trigger that runs `scripts/scrape.ts` with the cookie jar + KV creds as secrets.
+- [.github/workflows/ci.yml](../.github/workflows/ci.yml) — lint + typecheck + test on every pull request and push to `main`. Node 20, no Playwright install (tests are library-only).
+
+### Tests
+
+- `src/lib/*.test.ts` — Vitest suite co-located with the source. Covers `notam-parser`, `coord-parser`, `qcode-subjects`, `route-filter`, and the scraper's positive-signal WAF validators. See [docs/TESTING.md](TESTING.md).
+- [tests/fixtures/iaa/](../tests/fixtures/iaa/) — captured HTML shapes used by the scraper validator tests.
 
 ## Frontend rendering pipeline
 

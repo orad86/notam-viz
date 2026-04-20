@@ -50,7 +50,10 @@ function determineCategory(qLine: string, eItem: string): NotamCategory {
   if (text.includes('NAVAID') || text.includes('VOR') || text.includes('NDB') || text.includes('BEACON')) {
     return 'navaid';
   }
-  if (text.includes('REFUEL') || text.includes('STAND') || text.includes('PARKING') || text.includes('APRON')) {
+  // Note: `APRON` is intentionally NOT listed here — it's already matched by
+  // the runway branch above (first branch wins), so listing it here would be
+  // dead code. Keep airport to the aviation-facility verbs.
+  if (text.includes('REFUEL') || text.includes('STAND') || text.includes('PARKING')) {
     return 'airport';
   }
   if (text.includes('MILITARY') || text.includes('RESTRICTED') || text.includes('DANGER')) {
@@ -59,7 +62,15 @@ function determineCategory(qLine: string, eItem: string): NotamCategory {
   if (text.includes('PROCEDURE') || text.includes('APPROACH') || text.includes('ARRIVAL') || text.includes('DEPARTURE')) {
     return 'procedure';
   }
-  if (text.includes('AIRSPACE') || text.includes('CLSD') || text.includes('AREA') || text.includes('BOUNDARY') || text.includes('EGYPT') || text.includes('LEBANON')) {
+  // Keep this tight: the Q-code mapping in `getCategoryFromQLine` handles
+  // airspace NOTAMs correctly (Axx, RAx). The prior version matched CLSD /
+  // AREA / country names and swallowed most other NOTAMs into 'airspace'.
+  if (
+    text.includes('AIRSPACE') ||
+    text.includes('WARNING AREA') ||
+    text.includes('TEMPORARY RESERVED AREA') ||
+    text.includes('ATS ROUTE')
+  ) {
     return 'airspace';
   }
 
@@ -67,7 +78,9 @@ function determineCategory(qLine: string, eItem: string): NotamCategory {
 }
 
 export function parseNotamBlock(raw: string): ParsedNotam | null {
-  // Extract NOTAM ID from first line
+  // Extract NOTAM ID from first line. Returns null for garbage input; the
+  // caller is responsible for aggregating/logging failures so the parser
+  // stays pure (no side effects).
   const idMatch = raw.match(/[A-Z]\d{4}\/\d{2}/);
   if (!idMatch) {
     return null;

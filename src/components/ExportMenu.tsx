@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ParsedNotam } from '@/types/notam';
 import { exportPdf } from '@/lib/export/pdf';
 import { downloadGpx } from '@/lib/export/gpx';
 import { downloadKml } from '@/lib/export/kml';
+import { useClickOutside } from '@/lib/use-click-outside';
 
 interface Props {
   notams: ParsedNotam[];
@@ -22,15 +23,7 @@ export default function ExportMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
+  useClickOutside(ref, open, () => setOpen(false));
 
   const isDisabled = disabled || notams.length === 0;
   const count = notams.length;

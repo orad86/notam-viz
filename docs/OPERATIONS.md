@@ -8,6 +8,8 @@ Configuration, runtime model, error handling, and operator procedures for notam-
 - [Runtime model](#runtime-model)
 - [Daily scrape workflow](#daily-scrape-workflow)
 - [Error handling and logging](#error-handling-and-logging)
+- [Rate limiting](#rate-limiting)
+- [CI](#ci)
 - [Cookie-jar refresh procedure](#cookie-jar-refresh-procedure)
 - [Deployment notes](#deployment-notes)
 
@@ -38,7 +40,7 @@ No feature-flag system. No per-environment YAML. All behaviour is in code.
 
 ## Runtime model
 
-- **Process shape.** One Next.js server (Vercel function or self-hosted). The API route is `runtime = 'nodejs'` with `revalidate = 3600`, so it reuses the function instance and hits KV at most once per hour per region.
+- **Process shape.** One Next.js server (Vercel function or self-hosted). The API route is `runtime = 'nodejs'`. Reading `req.headers` for rate-limiting makes the route dynamic — ISR/revalidate don't apply — so all CDN caching is driven by the response `Cache-Control` header (1 h fresh + 24 h stale-while-revalidate).
 - **Data store.** Vercel KV (Upstash Redis) holds exactly one key: `notams:latest`, a single JSON blob of `NotamApiResponse`.
 - **Response caching.** `GET /api/notams` responds with `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` — the CDN edge serves most user hits without ever reaching the function.
 - **Scheduling.** Daily GitHub Action. The Vercel function never scrapes.
@@ -79,7 +81,59 @@ npx tsx scripts/scrape.ts
 
 ### Logging
 
-Not configured. Neither the scraper nor the API route emits structured logs — only return values and thrown errors. GitHub Actions logs capture the scraper's `console.log`/`console.error` output. Vercel function logs capture any thrown exceptions from the API route.
+Structured JSON lines via [src/lib/log.ts](../src/lib/log.ts). One record per event; `stdout` for info, `stderr` for warn/error. Vercel and GitHub Actions both surface these inline in their respective log views — no log aggregator required for basic operations.
+
+| Event | Fields | Where | Meaning |
+|---|---|---|---|
+| `scrape.jar.mint` | `jarSize`, `durationMs` | Scraper (GitHub Actions) | Playwright minted a fresh cookie jar. Normal on cold start; recurring means `IAA_COOKIE_JAR` is missing or rejected. |
+| `scrape.waf_challenge` | `url`, `jarSource`, `stage` | Scraper | Upstream returned a Radware challenge. `jarSource=env` means `IAA_COOKIE_JAR` is stale and needs refresh. |
+| `scrape.list.fetched` | `count`, `jarSource` | Scraper | List page parsed; `count` is the number of rows discovered. |
+| `scrape.run` | `listed`, `succeeded`, `failed`, `wafFailures`, `durationMs` | Scraper | End-of-run summary. `wafFailures > 0` is the early warning for a cookie jar going bad. |
+| `parser.no_notam_id` | `sample` (first 120 chars) | Parser | A raw block had no NOTAM ID pattern. Usually means the list/detail parse emitted garbage. |
+| `api.notams.served` | `count`, `durationMs` | API route | Happy path. |
+| `api.notams.empty_kv` | `durationMs` | API route | KV held no snapshot. 503 returned. |
+| `api.notams.rate_limited` | `key`, `retryAfterSec` | API route | 429 returned. `key` is the client network block (IPv4 /24 or IPv6 /64), masked before emission to keep logs below a raw-IP retention profile. Rate-limit bucketing inside Upstash still uses the full IP. |
+| `api.notams.error` | `message`, `durationMs` | API route | 500 returned. |
+| `ratelimit.unavailable` | `message` | API route | Upstash limiter threw; request was allowed (fail-open). |
+
+## Rate limiting
+
+`GET /api/notams` is rate-limited via `@upstash/ratelimit` with the existing Upstash Redis credentials. Sliding window **30 requests/minute per client IP**. The key is derived from (in order) `request.ip` (verified TCP peer from Vercel), `x-forwarded-for[0]`, `x-real-ip`, and finally the sentinel `anon`. On self-hosted deployments behind a non-trusting proxy, `x-forwarded-for` is client-controllable — strip it before the app receives the request if that's your posture. Exceeded requests return:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+X-RateLimit-Limit: 30
+X-RateLimit-Remaining: 0
+Cache-Control: no-store
+
+{"notams":[],"count":0,"errors":["Rate limit exceeded. Retry in 42s."],…}
+```
+
+**Fail-open semantics.** If the Upstash backend is unreachable, the limiter throws, [src/lib/rate-limit.ts](../src/lib/rate-limit.ts) catches, logs `ratelimit.unavailable`, and allows the request. Rationale: a temporarily-unreachable limiter is a worse outcome than a permissive one for a public NOTAM feed.
+
+Tuning the limit: edit `LIMIT` and `WINDOW` constants at the top of `src/lib/rate-limit.ts`. No env knob — changing these is a deliberate code change that should go through review.
+
+## CI
+
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on every pull request and every push to `main`:
+
+```
+npm ci
+npm run lint        # next lint + custom rules (see .eslintrc.json)
+npm run typecheck   # tsc --noEmit
+npm run test        # vitest run
+```
+
+A green CI means: no ESLint errors, no TypeScript errors, and all Vitest tests pass. The scrape workflow (`scrape.yml`) is separate and continues to run on its daily cron.
+
+Running the same gates locally:
+
+```bash
+npm run lint && npm run typecheck && npm run test
+```
+
+All three must pass before merging. The `test` gate also prevents regressions on the fixes from v0.4.0 (Q-code subject extraction, coord-parser Pattern 1c, WAF detection).
 
 ## Cookie-jar refresh procedure
 

@@ -1,11 +1,11 @@
 import * as cheerio from 'cheerio';
 import { chromium, type Browser } from 'playwright';
+import { IAA_LIST_URL, IAA_WELCOME_URL, iaaDetailUrl } from './config';
+import { log, timer } from './log';
 
-const BASE = 'https://brin.iaa.gov.il/MobileAeroinfo';
-const WELCOME_URL = `${BASE}/maiwelcome.aspx`;
-const LIST_URL = `${BASE}/maiNotam.aspx`;
-const DETAIL_URL = (rowID: string) =>
-  `${BASE}/maiDetails.aspx?rowID=${encodeURIComponent(rowID)}&scrpos=0&mode=notam`;
+const WELCOME_URL = IAA_WELCOME_URL;
+const LIST_URL = IAA_LIST_URL;
+const DETAIL_URL = iaaDetailUrl;
 
 // Chrome 147 on macOS — matches the session Chrome used to mint the cookies
 // pasted into IAA_COOKIE_JAR, so the server's fingerprint check passes.
@@ -30,8 +30,11 @@ const BROWSER_HEADERS: Record<string, string> = {
 const CONCURRENCY = 4;
 const MIN_JITTER_MS = 200;
 const MAX_JITTER_MS = 500;
-const DETAIL_MIN_BYTES = 4000;
-const LIST_MIN_BYTES = 20000;
+// Lower bounds on response size — short responses are either malformed,
+// empty, or Radware challenge pages. Names match `html.length` semantics
+// (UTF-16 code units, not bytes) since that's what we check against.
+const DETAIL_MIN_CHARS = 4000;
+const LIST_MIN_CHARS = 20000;
 const JAR_TTL_MS = 15 * 60 * 1000;
 const BROWSER_WARMUP_TIMEOUT_MS = 45_000;
 
@@ -57,6 +60,13 @@ export interface ScrapeResult {
 
 type Jar = Map<string, string>;
 
+// Module-scope jar cache + mint lock. This design assumes a SINGLE in-process
+// caller of `scrapeMobileNotams()` at a time — which is the contract today:
+// only `scripts/scrape.ts` (GitHub Actions) invokes it. If the scraper is
+// ever called from the Vercel function or a parallel orchestrator, revisit:
+// `jarMintLock` serialises minting, but `jar` re-assignment inside the worker
+// closure at the WAF-refresh branch races with in-flight workers reading the
+// prior binding. Safe-today footgun-tomorrow.
 let cachedJar: { jar: Jar; mintedAt: number } | null = null;
 let jarMintLock: Promise<Jar> | null = null;
 
@@ -79,8 +89,33 @@ function envJar(): Jar | null {
   return jar.size > 0 ? jar : null;
 }
 
-function isWafChallenge(html: string): boolean {
-  return /<title>\s*Error\s*100\s*<\/title>/i.test(html);
+// Belt-and-braces negative signal: either the Radware "Error 100" title OR
+// the stormcaster.js probe script that only the challenge page loads. If
+// Radware changes the title text without touching the probe (or vice versa),
+// we still catch the page. Either signal alone is enough.
+function hasChallengeMarker(html: string): boolean {
+  if (/<title>\s*Error\s*100\s*<\/title>/i.test(html)) return true;
+  if (/stormcaster(?:\.[a-z0-9]+)?\.js/i.test(html)) return true;
+  return false;
+}
+
+// Positive-signal validation: the list page is real iff it carries rows with
+// the `rowClicked` onclick handler. Radware challenge pages never do.
+export function isListPageValid(html: string): boolean {
+  if (html.length < LIST_MIN_CHARS) return false;
+  if (hasChallengeMarker(html)) return false;
+  return /tr[^>]*onclick="rowClicked/i.test(html);
+}
+
+// Positive-signal validation: a real detail page contains one or more
+// `td.DetailsBlueLine b` spans holding the ICAO block. Anchor the two markers
+// together so an unrelated `<b>` elsewhere in the document (e.g. help text on
+// a challenge page) can't false-pass us. The ~200-char window is enough for
+// ASP.NET's attribute noise without swallowing a whole body.
+export function isDetailPageValid(html: string): boolean {
+  if (html.length < DETAIL_MIN_CHARS) return false;
+  if (hasChallengeMarker(html)) return false;
+  return /class="DetailsBlueLine"[^<]{0,200}<b[\s>]/i.test(html);
 }
 
 function parseSetCookie(headers: Headers): string[] {
@@ -135,6 +170,7 @@ function jitter(): Promise<void> {
 }
 
 async function mintJarWithBrowser(): Promise<Jar> {
+  const done = timer('scrape.jar.mint');
   let browser: Browser | null = null;
   try {
     browser = await chromium.launch({
@@ -207,6 +243,7 @@ async function mintJarWithBrowser(): Promise<Jar> {
     for (const c of await context.cookies()) {
       jar.set(c.name, c.value);
     }
+    done({ jarSize: jar.size });
     return jar;
   } finally {
     if (browser) {
@@ -281,8 +318,8 @@ async function fetchDetailOnce(
   if (status !== 200) {
     return { ok: false, waf: false, reason: `HTTP ${status}` };
   }
-  if (isWafChallenge(body) || body.length < DETAIL_MIN_BYTES) {
-    return { ok: false, waf: true, reason: 'WAF challenge' };
+  if (!isDetailPageValid(body)) {
+    return { ok: false, waf: true, reason: 'WAF challenge or malformed detail' };
   }
   const block = parseDetailBlock(body);
   if (!block || block.length < 20) {
@@ -296,7 +333,7 @@ async function fetchList(jar: Jar): Promise<NotamListEntry[]> {
   if (res.status !== 200) {
     throw new Error(`List page returned HTTP ${res.status}`);
   }
-  if (isWafChallenge(res.body) || res.body.length < LIST_MIN_BYTES) {
+  if (!isListPageValid(res.body)) {
     throw new WafChallengeError(LIST_URL);
   }
   const entries = parseList(res.body);
@@ -337,6 +374,7 @@ async function runPool<T, R>(
 }
 
 export async function scrapeMobileNotams(): Promise<ScrapeResult> {
+  const overallDone = timer('scrape.run');
   let jar = await getJar(false);
   const jarAtStart = jar;
 
@@ -345,6 +383,11 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
     entries = await fetchList(jar);
   } catch (error) {
     if (error instanceof WafChallengeError) {
+      log('warn', 'scrape.waf_challenge', {
+        url: LIST_URL,
+        jarSource: isUsingEnvJar() ? 'env' : 'cached',
+        stage: 'list',
+      });
       jar = await getJar(true);
       entries = await fetchList(jar);
     } else {
@@ -352,9 +395,18 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
     }
   }
 
+  // `wafRefreshed` gates a second mint inside the worker pool below. Two
+  // parallel workers can race on this flag (both read false, both call
+  // `getJar(true)`), but `jarMintLock` inside `getJar` serialises the actual
+  // mint so only one browser launch happens — the second caller awaits the
+  // same promise. Safe, but the coordination is non-obvious.
   let wafRefreshed = jar !== jarAtStart;
 
   const usingEnv = isUsingEnvJar();
+  log('info', 'scrape.list.fetched', {
+    count: entries.length,
+    jarSource: usingEnv ? 'env' : wafRefreshed ? 'minted' : 'cached',
+  });
 
   const worker = async (entry: NotamListEntry): Promise<string> => {
     let first = await fetchDetailOnce(entry.rowID, jar);
@@ -387,6 +439,7 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
 
   const rawBlocks: string[] = [];
   const failed: ScrapeResult['failed'] = [];
+  let wafFailures = 0;
   outcomes.forEach((outcome, i) => {
     const entry = entries[i];
     if (outcome.ok) {
@@ -396,8 +449,16 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
         outcome.error instanceof Error
           ? outcome.error.message
           : String(outcome.error);
+      if (outcome.error instanceof WafChallengeError) wafFailures++;
       failed.push({ rowID: entry.rowID, notamId: entry.notamId, reason });
     }
+  });
+
+  overallDone({
+    listed: entries.length,
+    succeeded: rawBlocks.length,
+    failed: failed.length,
+    wafFailures,
   });
 
   return {

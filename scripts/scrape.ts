@@ -1,26 +1,38 @@
 import { scrapeMobileNotams } from '../src/lib/scraper-mobile';
 import { parseNotamBlock } from '../src/lib/notam-parser';
 import { setLatestNotams } from '../src/lib/kv';
+import { IAA_LIST_URL } from '../src/lib/config';
+import { log } from '../src/lib/log';
 import type { NotamApiResponse } from '../src/types/notam';
-
-const SOURCE_URL = 'https://brin.iaa.gov.il/MobileAeroinfo/maiNotam.aspx';
 
 async function main() {
   const { rawBlocks, fetchedAt, listed, failed } = await scrapeMobileNotams();
 
   const notams: NotamApiResponse['notams'] = [];
   const errors: string[] = [];
+  const nullSamples: string[] = [];
+  let nullCount = 0;
 
   for (const block of rawBlocks) {
     try {
       const parsed = parseNotamBlock(block);
-      if (parsed) notams.push(parsed);
-      else errors.push('Parser returned null for a block');
+      if (parsed) {
+        notams.push(parsed);
+      } else {
+        nullCount++;
+        errors.push('Parser returned null for a block');
+        if (nullSamples.length < 3) nullSamples.push(block.slice(0, 120));
+      }
     } catch (error) {
       errors.push(
         `parseNotamBlock failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  if (nullCount > 0) {
+    // Single aggregate warn instead of per-block noise.
+    log('warn', 'parser.null_blocks', { nullCount, samples: nullSamples });
   }
 
   for (const f of failed) {
@@ -34,7 +46,7 @@ async function main() {
   const payload: NotamApiResponse = {
     notams,
     fetchedAt,
-    source: SOURCE_URL,
+    source: IAA_LIST_URL,
     count: notams.length,
     errors: errors.length > 0 ? errors : undefined,
   };

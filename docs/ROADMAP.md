@@ -3,11 +3,37 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
-- [Completed in v0.3.0](#completed-in-v030)
+- [Shipped in v0.4.0](#shipped-in-v040)
+- [Fixed in v0.3.x](#fixed-in-v033)
 - [Testing](#testing)
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.4.0
+
+Production-readiness pass. Correctness fixes are pinned by the Vitest suite; infrastructure additions (logger, rate-limit, click-outside hook) are exercised by the build + typecheck + lint gates but don't yet have dedicated tests — see [docs/TESTING.md](TESTING.md) for the coverage gap.
+
+- **Q-code subject extraction fixed.** `getCategoryFromQLine` in [src/lib/qcode-subjects.ts](../src/lib/qcode-subjects.ts) now calls `substring(0, 2)` on the 4-letter code (e.g. `FALC` → `FA`), so `QFALC` maps to `airport`, `QMRLC` to `runway`, `QRDCA` to `military`, etc. Pinned by [src/lib/qcode-subjects.test.ts](../src/lib/qcode-subjects.test.ts) and reproduced end-to-end in [src/lib/notam-parser.test.ts](../src/lib/notam-parser.test.ts).
+- **`determineCategory` keyword fallback tightened.** Dropped `CLSD`, `AREA`, `BOUNDARY`, `EGYPT`, `LEBANON` — kept only strong airspace signals (`AIRSPACE`, `WARNING AREA`, `TEMPORARY RESERVED AREA`, `ATS ROUTE`). The Q-code map now does the primary classification; the fallback is a safety net for NOTAMs with missing/unknown Q-codes.
+- **Coordinate parser: Pattern 1c is no longer gated on `coords.length === 0`.** Mixed-format NOTAMs (one PSN coord + several standalone `N..E..` coords) now return a polygon instead of a lone point. Added a lat/lon dedupe pass so different patterns can't emit the same coord twice.
+- **WAF positive-signal detection.** `isListPageValid` / `isDetailPageValid` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) now require the expected DOM markers (`tr[onclick="rowClicked"]` / `DetailsBlueLine`). A silently-broken Radware challenge that doesn't carry the `Error 100` title is caught too.
+- **Vitest test suite.** 52 tests across five files pinning the parsers, coord extraction, Q-code mapping, route filter, and scraper validators. Fixture-based; co-located with the code they test.
+- **CI gate.** [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs `lint`, `typecheck`, `test` on every PR and push to `main`. ESLint set up with the Next strict preset plus `@typescript-eslint/no-explicit-any: error` and a `no-console` warning. `typecheck` script added (`tsc --noEmit`). `engines.node` pinned to `>=20`.
+- **Config centralized.** URLs, KV key, and cache windows moved to [src/lib/config.ts](../src/lib/config.ts). The scraper, the `/api/notams` route, and the GitHub Action scrape script now import from one place.
+- **Structured logger.** [src/lib/log.ts](../src/lib/log.ts) — one JSON line per event. Four instrumented points in the scraper (jar mint, WAF challenge, list fetched, run completion) plus per-request logging on `/api/notams` (served, rate-limited, 503 empty-KV, 500 error).
+- **Rate limit on `/api/notams`.** Sliding window of 30 req/min per client IP via `@upstash/ratelimit`, backed by the existing Upstash Redis credentials. Fails open if the limiter backend is unreachable — the NOTAM payload is more valuable than strict enforcement. Returns 429 + `Retry-After` + `X-RateLimit-*` headers when the bucket is exhausted.
+- **Escape-helper dedupe.** `escapeHtml`/`escapeXml` in [src/lib/export/download.ts](../src/lib/export/download.ts) now share a private helper — same output, half the duplication.
+- **`useClickOutside` hook.** [src/lib/use-click-outside.ts](../src/lib/use-click-outside.ts) — single implementation consumed by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete. Four copies of the `mousedown` boilerplate collapsed to one hook.
+
+### Intentionally deferred
+
+- **`MapView.tsx` (810 lines) split into `src/components/map/*`** — planned, not executed. Refactors of Leaflet-bound render code have high regression risk without a browser-driven smoke test, and the current file works. Will revisit under a dedicated refactor branch.
+- **`scraper-mobile.ts` (409 lines) split into `src/lib/scraper/*`** — same reasoning; the tests pin behavior, but the split is a pure reorganization with no observable value to users. Defer until there's a second reason to touch this file.
+
+### Known security finding — requires separate action
+
+- **Next.js 14.2.35 carries three open CVEs** (see `npm audit`): Image Optimizer DoS (`GHSA-9g9p-9gw9-jx7f`, moderate), HTTP request deserialization DoS (`GHSA-h25m-26qc-wcjf`, high), rewrite-based request smuggling (`GHSA-ggv3-7p47-pfv8`, moderate). Latest Next 14.x is 14.2.35; the patch is in 15.5.10+. **The Next 14 → 15 upgrade is a breaking-change migration and is out of scope for this review.** Flag it on the next major work cycle.
 
 ## Fixed in v0.3.3
 
@@ -40,31 +66,29 @@ Removed in this release: the Select-mode toggle, `RectangleSelector`, and the la
 
 ## Testing
 
-**No automated tests exist.** Confirmed by inspecting `package.json` (no `test` script, no `jest`/`vitest`/`playwright-test` devDependency) and the repo root (no `__tests__/`, `*.test.ts`, `*.spec.ts`, or `e2e/` directory).
+**Vitest suite in place.** Config at [vitest.config.ts](../vitest.config.ts); see [docs/TESTING.md](TESTING.md) for conventions. 52 tests across the library modules; zero UI/component tests today.
 
-Coverage matrix (inferred, all zero):
+Coverage matrix:
 
-| Layer | Present? | What a test would cover |
+| Layer | File | What it covers |
 |---|---|---|
-| Unit — `notam-parser.ts` | No | `parseNotamBlock` against fixture NOTAM text (PERM, DM coords, multi-line E-item, missing Q-line, same-line A/B/C mobile layout). |
-| Unit — `coord-parser.ts` | No | `parseCoordinatePair`, `parseQLineCoordinate` (all three format branches), `extractCoordinatesFromBody` (PSN-prefixed, standalone, mixed), `isSelfIntersectingPolygon`. |
-| Unit — `qcode-decoder.ts` / `qcode-subjects.ts` | No | Known codes map to expected subject/category; unknown codes don't throw. The substring bug in `getCategoryFromQLine` would have been caught immediately here. |
-| Integration — `scraper-mobile.ts` | No | Recorded HTTP fixtures (list page, detail page, Error 100 challenge) replayed through `parseList` / `parseDetailBlock` / the retry state machine. |
-| E2E | No | Playwright test driving the live app at `localhost:3000` and asserting map content renders. |
+| Unit — `notam-parser.ts` | [src/lib/notam-parser.test.ts](../src/lib/notam-parser.test.ts) | `parseNotamBlock` for PERM, multi-line E-item, same-line mobile layout, missing Q-line, garbage input; category is `airport` for `QFALC` (pins the Q-code fix). |
+| Unit — `coord-parser.ts` | [src/lib/coord-parser.test.ts](../src/lib/coord-parser.test.ts) | `parseCoordinatePair`, `parseQLineCoordinate` (DMS+separator, DM-compact, no-radius), `extractCoordinatesFromBody` (PSN, standalone, mixed, empty), dedupe. |
+| Unit — `qcode-subjects.ts` | [src/lib/qcode-subjects.test.ts](../src/lib/qcode-subjects.test.ts) | `getCategoryFromQCode` + `getCategoryFromQLine` case sensitivity, real Q-codes (`QFALC`, `QMRLC`, `QWULW`, `QRDCA`), unknown fallback. |
+| Unit — `route-filter.ts` | [src/lib/route-filter.test.ts](../src/lib/route-filter.test.ts) | `parseRouteInput` delimiters, `haversineNm`, `pointToSegmentDistanceNm`, `notamMatchesRoute` (on/off corridor + altitude band), `notamOverlapsWindow`. |
+| Unit — `scraper-mobile.ts` | [src/lib/scraper-mobile.test.ts](../src/lib/scraper-mobile.test.ts) | `isListPageValid` / `isDetailPageValid` on a real fixture + a WAF Error-100 page + undersized bodies. |
 
-**Gaps / risks from having no tests:**
+**Remaining coverage gaps (deliberately out of scope for v0.4.0):**
 
-- Parser changes can silently drop fields. The `extractItem` regex change that makes the mobile layout parse correctly has no test pinning that behaviour, so a regression would not be caught before deployment.
-- The Q-code substring bug (below) has gone undetected precisely because nothing compares `determineCategory('LLLL/QFALC/…')` against the expected `'airport'`.
-- `extractCoordinatesFromBody` has six regex branches guarded by `if (coords.length === 0)`. A refactor could shift precedence without any alarm going off.
-- WAF retry logic is stateful across two workers; a concurrency bug (e.g. `wafRefreshed` race) would only manifest in production traffic.
-
-A minimum credible test suite: Jest/Vitest for `src/lib/*`, fixture-based; one recorded-HTTP integration test for `scrapeMobileNotams` using `msw` or equivalent; one Playwright smoke test for the rendered map. This is the single highest-ROI improvement.
+- Component/UI tests — MapView, NotamList, filter bar. Requires jsdom + React Testing Library. Defer until a Leaflet-aware component test harness is worth the setup cost.
+- E2E Playwright smoke test against `localhost:3000`. Defer until there's a second reason to stand up a preview-style runner.
+- Integration test for `scrapeMobileNotams` end-to-end (listed→detailed→parsed with mocked `fetch`). Happy path is covered by the pure validators; full state-machine pin would also need network-mocking infrastructure.
 
 ## Security considerations
 
 - **AuthN/AuthZ:** none. `GET /api/notams` is open to anyone who can reach the server. Acceptable for public data, but if this is ever deployed behind a login gate, the route needs its own checks.
-- **Rate limiting:** none. A malicious caller hitting `/api/notams` faster than every 5 minutes defeats the `Cache-Control: max-age=300` and drives real upstream load, potentially getting the server's IP flagged by Radware.
+- **Rate limiting:** 30 req/min per IP via `@upstash/ratelimit`, backed by the existing Upstash Redis (see [src/lib/rate-limit.ts](../src/lib/rate-limit.ts)). Fails open if the limiter backend is unreachable. Shipped in v0.4.0.
+- **Next.js CVEs:** v14.2.35 (current) carries three open advisories; the fixes are in v15.5.10+. Migrating to Next 15 is a breaking change deferred out of this pass. See the v0.4.0 release notes for the specific advisories.
 - **Session token in env:** `IAA_COOKIE_JAR` carries a live Radware-issued session token that represents a human browser's challenge pass. Leaking it lets anyone make requests that impersonate that session until it expires (~hours to a day). Mitigations:
   - `.gitignore` includes `.env*.local` (confirmed).
   - `.env.local.example` contains only placeholder `…` values.
@@ -82,64 +106,11 @@ Not-an-issue-here:
 
 ## Technical debt
 
-Items grounded in the current source, ranked by maintainer-impact.
+Items still open, grounded in current source, ranked by maintainer-impact.
 
-### Q-code subject extraction bug — high
+### Monolithic component and scraper files — medium
 
-In [src/lib/qcode-subjects.ts](../src/lib/qcode-subjects.ts):
-
-```ts
-export function getCategoryFromQLine(qLine: string): NotamCategory {
-  const match = qLine.match(/\bQ([A-Z]{4})\b/i);
-  if (!match) return 'other';
-
-  const qCode = match[1].substring(1, 3); // Get 2nd & 3rd letters
-  return getCategoryFromQCode(qCode);
-}
-```
-
-`match[1]` is the 4 letters after `Q` (e.g. `FALC` for `QFALC`). The comment says "Get 2nd & 3rd letters" — meaning of the *full* Q-code — but `.substring(1, 3)` on `FALC` returns `AL`, not `FA`. Consequence: all subject-code lookups are off by one position; most NOTAMs fall through to `'other'` or get mis-categorized via the keyword fallback in `determineCategory`. Example confirmed in production responses: `QFALC` ("Facility - Aerodrome - Closed") ends up `category: "airspace"` because the keyword fallback matches `CLSD`.
-
-Fix: `match[1].substring(0, 2)`. Add a unit test covering `QFALC → airport`, `QMRLC → runway`, `QWULW → airspace`.
-
-### `ParsedNotam.id` undeclared — medium
-
-[src/lib/notam-parser.ts:167](../src/lib/notam-parser.ts#L167) sets `id: notamId` on the returned object for backwards compatibility. `ParsedNotam` in [src/types/notam.ts](../src/types/notam.ts) does not declare this field, so `tsc --noEmit` reports errors in:
-
-- [src/components/MapView.tsx](../src/components/MapView.tsx) — eight uses of `selectedNotam?.id === notam.id`.
-- [src/components/NotamList.tsx](../src/components/NotamList.tsx) — six uses including React `key` and search filter.
-
-Fix options: (a) add `id: string` to `NotamDetails` (one-line change); (b) migrate components to `notamId` and drop the alias.
-
-### Fragile WAF detection heuristics — medium
-
-`isWafChallenge(html)` greps for `<title>Error 100</title>`, and body-size thresholds (`DETAIL_MIN_BYTES = 4000`, `LIST_MIN_BYTES = 20000`) act as a secondary signal. If Radware changes the challenge page template (new title, different size), the scraper will stop detecting challenges — and silently return garbage to `parseNotamBlock`.
-
-Fix: add a positive-signal check (e.g. response contains `tr[onclick^="rowClicked"]` for the list, `td.DetailsBlueLine b` for detail) before accepting the body.
-
-### `determineCategory` keyword fallback is too loose — medium
-
-In [src/lib/notam-parser.ts](../src/lib/notam-parser.ts):
-
-```ts
-if (text.includes('AIRSPACE') || text.includes('CLSD') || text.includes('AREA') || text.includes('BOUNDARY') || text.includes('EGYPT') || text.includes('LEBANON')) {
-  return 'airspace';
-}
-```
-
-`CLSD` appears in nearly every aerodrome-closed NOTAM, `AREA` in most procedural ones, and country names appear in many non-airspace NOTAMs. Combined with the Q-code subject bug, this fallback swallows a large fraction of NOTAMs into `airspace`.
-
-Fix: remove this fallback once the Q-code bug is fixed, or narrow the keyword set.
-
-### Coordinate-parser precedence is gated on `coords.length === 0` — low/medium
-
-[src/lib/coord-parser.ts](../src/lib/coord-parser.ts) `extractCoordinatesFromBody` runs pattern 1a (PSN + decimal seconds), pattern 1b (PSN + integer seconds), pattern 1c (standalone prefix — `N..E..`), then compact/separated/DM fallbacks. Each fallback is gated `if (coords.length === 0)`. This means a body with *one* PSN-prefixed coord plus several standalone ones returns just the one — the standalone ones never run because `coords.length` is non-zero. Empirically rare in practice because real NOTAMs tend to use one format per message, but a landmine.
-
-Fix: drop the gate on pattern 1c (standalones should always be picked up if the PSN ones found fewer than ~3), or dedupe after running all patterns.
-
-### No logging / observability — low/medium
-
-Scrape timing, jar mint/reuse decisions, per-rowID failure counts — none of this is logged. An operator cannot distinguish "115 NOTAMs always works, 114 sometimes fails" from "the WAF is escalating on Tuesdays" without adding instrumentation first.
+[src/components/MapView.tsx](../src/components/MapView.tsx) is 810 lines and [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) is ~450 lines after v0.4.0 edits. Planned splits (`src/components/map/*` and `src/lib/scraper/*`) were scoped in the v0.4.0 plan but intentionally deferred — the test suite pins the scraper's observable behavior but there's still no UI smoke test for the map, and a pure reorganization ships regression risk with zero user-visible value. Revisit when there's a second reason to edit these files.
 
 ### `runPool` result array can have holes on exceptions in early workers — low
 
@@ -159,33 +130,25 @@ Installing `playwright` pulls ~150 MB of Chromium even when `IAA_COOKIE_JAR` is 
 
 ## Suggested improvements
 
-Grouped by priority. Each item maps to a debt entry above or names a concrete addition.
+Remaining items, grouped by priority.
 
-### Critical — fix before next non-trivial change
+### High
 
-1. **Fix `getCategoryFromQLine`** — one-line `substring(0, 2)` change. Add a unit test.
-2. **Add minimum test suite** — Jest/Vitest with fixtures for `parseNotamBlock`, `parseQLineCoordinate`, `extractCoordinatesFromBody`, and a recorded-HTTP test for `scrapeMobileNotams` (using `msw` or writing the fixtures manually). Target: ~15 tests covering the happy path for each of the above + the three known coord formats + the self-intersecting polygon case.
-3. **Add `id: string` to `NotamDetails`** — settles the `tsc --noEmit` noise. Or remove the alias and migrate components.
-
-### Medium — next refactor window
-
-4. **Positive-signal WAF detection** — the list page is fine only if `tr[onclick^="rowClicked"]` parses; the detail page is fine only if `td.DetailsBlueLine b` has content. Invert the current "suspicious if empty/small/titled Error 100" check to "accepted if the expected DOM shape is present".
-5. **Drop or tighten the `determineCategory` keyword fallback** — post Q-code fix, most NOTAMs no longer need it. Measure before removing: emit counts of which branch wins per scrape.
-6. **Fold pattern 1c (standalone coords) into the always-run set** in `extractCoordinatesFromBody`, dedupe by coord string once at the end.
-7. **Basic logging** — structured output at four points: `mintJarWithBrowser` entry/exit with duration, each `WafChallengeError` including URL and whether env/cached/minted jar was in use, `runPool` completion with (success count, WAF count, transient count), and `parseNotamBlock` null-returns with the first ~100 chars of the block.
+1. **Upgrade Next.js** off v14.2.35 to v15.5.10+ to close the three open CVEs (see v0.4.0 security note). Breaking-change migration; plan as a dedicated branch.
+2. **Split `MapView.tsx` and `scraper-mobile.ts`** — see the matching entry under Technical debt. Do this alongside adding UI component tests so regressions are caught.
 
 ### Nice to have
 
-8. **Use the detail-page `LabelRow*` spans** as a second source for `effective`/`expires` when the B/C line parse yields `Invalid Date`.
-9. **Add a `/api/notams?since=<iso>` param** that only returns NOTAMs with `effective > since`, to support polling.
-10. **Persist the cookie jar to disk** so a cold restart doesn't need a fresh mint when the env var path is not in use. Trade-off: extra I/O, and the cookie is now on disk.
-11. **Replace module-scoped `cachedJar` with a real TTL cache library** if the app ever scales to multiple concurrent scrapes — current `jarMintLock` works but the ergonomics degrade.
-12. **Trim trailing `)` in the parser itself**, not in the popup formatter — the stray closing paren is currently cleaned by `trimTrailingParen` in [src/components/MapView.tsx](../src/components/MapView.tsx). Fixing it at parse time means `NotamDetail`, any future consumer, and `rawText` comparisons all see the same thing.
-13. **Tighten `.env.local.example`** — include the full cookie-name list from [docs/SCRAPING.md](SCRAPING.md) or just say "paste the whole Cookie header verbatim".
-14. **Harden self-intersection detection** to also downgrade to multipoint when the polygon's bounding box area is implausibly large (e.g. > 5° × 5° for an Israeli NOTAM) — catches the case where the vertex order happens to not self-intersect but still doesn't form a meaningful closed area.
+3. **Use the detail-page `LabelRow*` spans** as a second source for `effective`/`expires` when the B/C line parse yields `Invalid Date`.
+4. **Add a `/api/notams?since=<iso>` param** that only returns NOTAMs with `effective > since`, to support polling.
+5. **Persist the cookie jar to disk** so a cold restart doesn't need a fresh mint when the env var path is not in use. Trade-off: extra I/O, and the cookie is now on disk.
+6. **Replace module-scoped `cachedJar` with a real TTL cache library** if the app ever scales to multiple concurrent scrapes — current `jarMintLock` works but the ergonomics degrade.
+7. **Trim trailing `)` in the parser itself**, not in the popup formatter — the stray closing paren is currently cleaned by `trimTrailingParen` in `MapView.tsx`. Fixing it at parse time means any future consumer and `rawText` comparisons all see the same thing.
+8. **Tighten `.env.local.example`** — include the full cookie-name list from [docs/SCRAPING.md](SCRAPING.md) or just say "paste the whole Cookie header verbatim".
+9. **Harden self-intersection detection** to also downgrade to multipoint when the polygon's bounding box is implausibly large (e.g. > 5° × 5° for an Israeli NOTAM).
 
 ### Out of scope / no action
 
 - Migrating away from `react-leaflet` (v4) — no active pain point.
-- Switching to the Next.js App Router's Server Components for the map — React-Leaflet requires client-side only.
-- Adding a background refresh worker — contradicts the "always live, never stale" posture. Revisit only if upstream load becomes a problem.
+- Switching to Server Components for the map — React-Leaflet requires client-side only.
+- Adding a background refresh worker — contradicts the "always live, never stale" posture.

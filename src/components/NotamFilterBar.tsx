@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NotamCategory, ParsedNotam } from '@/types/notam';
 import { SortBy } from '@/lib/use-notam-filter';
 import { TimeWindow } from '@/lib/route-filter';
+import { useClickOutside } from '@/lib/use-click-outside';
 import ExportMenu from './ExportMenu';
 
 interface Props {
@@ -101,23 +102,8 @@ export default function NotamFilterBar({
     toLocalInput(new Date(Date.now() + 24 * 3600 * 1000)),
   );
 
-  useEffect(() => {
-    if (!sortOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!sortRef.current?.contains(e.target as Node)) setSortOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [sortOpen]);
-
-  useEffect(() => {
-    if (!timeOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!timeRef.current?.contains(e.target as Node)) setTimeOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [timeOpen]);
+  useClickOutside(sortRef, sortOpen, () => setSortOpen(false));
+  useClickOutside(timeRef, timeOpen, () => setTimeOpen(false));
 
   useEffect(() => {
     if (timeWindow) {

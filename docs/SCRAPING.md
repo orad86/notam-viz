@@ -160,8 +160,8 @@ All in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts):
 |---|---|---|
 | `CONCURRENCY` | `4` | Parallel detail fetches. Raising this risks Radware rate-escalation. |
 | `MIN_JITTER_MS` / `MAX_JITTER_MS` | `200` / `500` | Per-request delay envelope. Lower = faster + riskier; higher = slower + safer. |
-| `DETAIL_MIN_BYTES` | `4000` | Anything smaller is treated as a WAF challenge (the Error 100 page is ~45 KB, genuine detail pages are ~9–10 KB; this threshold covers truncated/empty responses). |
-| `LIST_MIN_BYTES` | `20000` | Same idea for the list page, which is normally ~78 KB. |
+| `DETAIL_MIN_CHARS` | `4000` | Anything smaller is treated as a WAF challenge (the Error 100 page is ~45 KB, genuine detail pages are ~9–10 KB; this threshold covers truncated/empty responses). Measured via `html.length` (UTF-16 code units). |
+| `LIST_MIN_CHARS` | `20000` | Same idea for the list page, which is normally ~78 KB. |
 | `JAR_TTL_MS` | `15 * 60 * 1000` | How long a minted jar is reused before re-minting on a cold request. |
 | `BROWSER_WARMUP_TIMEOUT_MS` | `45000` | Per-navigation timeout during Playwright mint (3 reloads × 4 s + navigation overhead). |
 

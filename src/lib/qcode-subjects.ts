@@ -171,9 +171,11 @@ export function getCategoryFromQCode(qCodeSubject: string): NotamCategory {
 
 export function getCategoryFromQLine(qLine: string): NotamCategory {
   // Extract Q-code from Q-line format: FIR/QXXXXX/...
+  // match[1] is the 4 letters after Q (e.g. "FALC" from "QFALC"). The ICAO
+  // subject code is the first two of those (FA = Facility → Aerodrome).
   const match = qLine.match(/\bQ([A-Z]{4})\b/i);
   if (!match) return 'other';
 
-  const qCode = match[1].substring(1, 3); // Get 2nd & 3rd letters
+  const qCode = match[1].substring(0, 2).toUpperCase();
   return getCategoryFromQCode(qCode);
 }

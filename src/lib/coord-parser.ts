@@ -178,21 +178,15 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
   // 3. DDMMN/DDDMME (DM format without seconds)
 
   const coords: Array<[number, number]> = [];
-  const seenCoords = new Set<string>();
+  let match;
 
-  // First: Look for coordinates explicitly after PSN (Position) or related keywords
-  // Patterns: "PSN COORDINATES", "PSNS coordinates", "FLW PSN coordinates", etc.
-  // Coordinates can be: DDMMSSN0DDDMMSSE or DDMMSSNDDMMMMSSE (compact formats)
+  // Dedup is handled by the rounded lat/lon pass at the bottom — we let
+  // overlapping patterns push freely and collapse collisions once.
 
   // Pattern 1a: PSN followed by coordinates with optional intermediate text
   const psnPattern1 = /PSN[S]?\s+[A-Z]*\s*(\d{2})(\d{2})(\d{2}(?:\.\d+)?)[NS]0?(\d{3})(\d{2})(\d{2}(?:\.\d+)?)[EW]/gi;
-  let match;
 
   while ((match = psnPattern1.exec(eItem)) !== null) {
-    const fullCoord = match[0];
-    if (seenCoords.has(fullCoord)) continue;
-    seenCoords.add(fullCoord);
-
     const coordStr = match[0];
     const latDir = coordStr.includes('N') ? 'N' : 'S';
     const lonDir = coordStr.includes('E') ? 'E' : 'W';
@@ -220,10 +214,6 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
   const psnPattern2 = /(?:PSN|PSNS|FLW\s+PSN)\s*[A-Z]*\s*(\d{2})(\d{2})(\d{2})[NS]0?(\d{3})(\d{2})(\d{2})[EW]/gi;
 
   while ((match = psnPattern2.exec(eItem)) !== null) {
-    const fullCoord = match[0];
-    if (seenCoords.has(fullCoord)) continue;
-    seenCoords.add(fullCoord);
-
     const coordStr = match[0];
     const latDir = coordStr.includes('N') ? 'N' : 'S';
     const lonDir = coordStr.includes('E') ? 'E' : 'W';
@@ -247,17 +237,13 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
   }
 
   // Pattern 1c: Standalone coordinates without PSN keyword
-  // Like: N314945E0345822 (appears at start of line or after whitespace)
-  if (coords.length === 0) {
-    // Lookbehind/lookahead so adjacent coords ("N...E... N...E...") don't
-    // consume each other's separator — without this we only catch every other.
+  // Like: N314945E0345822 (appears at start of line or after whitespace).
+  // Runs unconditionally so mixed-format NOTAMs (one PSN + several standalone)
+  // don't drop coords; the lat/lon dedup below collapses any overlap.
+  {
     const standalonePattern = /(?<=^|\s)([NS]\d{2})(\d{2})(\d{2})([EW]\d{3})(\d{2})(\d{2})(?=\s|$)/gm;
 
     while ((match = standalonePattern.exec(eItem)) !== null) {
-      const fullCoord = match[0];
-      if (seenCoords.has(fullCoord)) continue;
-      seenCoords.add(fullCoord);
-
       try {
         const latStr = match[1]; // Format: "N314945"
         const latDir = latStr[0];
@@ -277,22 +263,21 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
         if (isValidIsraeliCoord(lat, lon)) {
           coords.push([lat, lon]);
         }
-      } catch (e) {
+      } catch {
         // Skip if parsing fails
       }
     }
   }
 
-  // Second: Look for any other coordinates not caught by PSN patterns
-  // Pattern 2: Compact format - DDMMSS.SSN0DDDMMSS.SSE (no separators)
+  // Fallback patterns — run only if the PSN/standalone passes caught nothing.
+  // These match bare coord-shaped strings anywhere in the body and have a
+  // higher false-positive rate, so they gate on `coords.length === 0`.
+
   if (coords.length === 0) {
+    // Compact format - DDMMSS.SSN0DDDMMSS.SSE (no separators)
     const compactPattern = /(\d{2})(\d{2})(\d{2}(?:\.\d+)?)[NS]0?(\d{3})(\d{2})(\d{2}(?:\.\d+)?)[EW]/g;
 
     while ((match = compactPattern.exec(eItem)) !== null) {
-      const fullCoord = match[0];
-      if (seenCoords.has(fullCoord)) continue;
-      seenCoords.add(fullCoord);
-
       const coordStr = match[0];
       const latDir = coordStr.includes('N') ? 'N' : 'S';
       const lonDir = coordStr.includes('E') ? 'E' : 'W';
@@ -316,15 +301,11 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
     }
   }
 
-  // Pattern 2: Separated format - DD MM SS.SS N / DDD MM SS.SS E
   if (coords.length === 0) {
+    // Separated format - DD MM SS.SS N / DDD MM SS.SS E
     const sepPattern = /(\d{2})(\d{2})(\d{2}(?:\.\d+)?)\s*([NS])\s*[\D/]*(\d{3})(\d{2})(\d{2}(?:\.\d+)?)\s*([EW])/g;
 
     while ((match = sepPattern.exec(eItem)) !== null) {
-      const fullCoord = match[0];
-      if (seenCoords.has(fullCoord)) continue;
-      seenCoords.add(fullCoord);
-
       const lat = dmsToDec(
         parseInt(match[1]),
         parseInt(match[2]),
@@ -344,15 +325,11 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
     }
   }
 
-  // Pattern 3: DM format only - DDMMN/DDDMME
   if (coords.length === 0) {
+    // DM format only - DDMMN/DDDMME
     const dmPattern = /(\d{2})(\d{2})[NS]\s*[\D/]*(\d{3})(\d{2})[EW]/g;
 
     while ((match = dmPattern.exec(eItem)) !== null) {
-      const fullCoord = match[0];
-      if (seenCoords.has(fullCoord)) continue;
-      seenCoords.add(fullCoord);
-
       const coordStr = match[0];
       const latDir = coordStr.includes('N') ? 'N' : 'S';
       const lonDir = coordStr.includes('E') ? 'E' : 'W';
@@ -366,13 +343,25 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
     }
   }
 
-  if (coords.length === 0) {
+  // Dedup by rounded lat/lon (6 decimals ≈ 11 cm) — different format patterns
+  // can emit the same point twice (e.g. one PSN-prefixed + one standalone
+  // after Pattern 1c is unconditional). Preserve insertion order.
+  const deduped: Array<[number, number]> = [];
+  const seenKeys = new Set<string>();
+  for (const [lat, lon] of coords) {
+    const key = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    deduped.push([lat, lon]);
+  }
+
+  if (deduped.length === 0) {
     return null;
-  } else if (coords.length === 1) {
+  } else if (deduped.length === 1) {
     return {
       type: 'point',
-      lat: coords[0][0],
-      lon: coords[0][1],
+      lat: deduped[0][0],
+      lon: deduped[0][1],
     };
   }
 
@@ -381,10 +370,10 @@ export function extractCoordinatesFromBody(eItem: string): NotamGeometry {
   // or a non-simple boundary — connecting them in listed order produces a
   // self-intersecting polygon which Leaflet's even-odd fill renders as an
   // "inside-out" shape. Fall back to multipoint rendering in that case.
-  if (coords.length >= 3 && isSelfIntersectingPolygon(coords)) {
-    return { type: 'multipoint', points: coords };
+  if (deduped.length >= 3 && isSelfIntersectingPolygon(deduped)) {
+    return { type: 'multipoint', points: deduped };
   }
-  return { type: 'polygon', vertices: coords };
+  return { type: 'polygon', vertices: deduped };
 }
 
 // Segment intersection test — returns true if two line segments properly

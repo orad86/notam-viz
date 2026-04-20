@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Route,
   RoutePoint,
@@ -9,6 +9,7 @@ import {
   resolveRouteTokens,
 } from '@/lib/route-filter';
 import { parseAltitudeFt } from '@/lib/altitude-parse';
+import { useClickOutside } from '@/lib/use-click-outside';
 
 interface Props {
   index: RoutePointIndex;
@@ -36,14 +37,7 @@ export default function RouteInput({ index, route, setRoute }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!suggestOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setSuggestOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [suggestOpen]);
+  useClickOutside(wrapRef, suggestOpen, () => setSuggestOpen(false));
 
   const tokens = useMemo(() => parseRouteInput(input), [input]);
   const parsed = useMemo(() => resolveRouteTokens(tokens, index), [tokens, index]);

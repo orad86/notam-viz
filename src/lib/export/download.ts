@@ -24,20 +24,23 @@ export function timestampSuffix(): string {
   return `${yyyy}${mm}${dd}-${HH}${MM}Z`;
 }
 
-export function escapeXml(s: string): string {
+// XML and HTML escaping differ only in how the apostrophe is encoded:
+// XML spec allows both `&apos;` and `&#39;`, but `&apos;` is not valid in
+// pre-HTML5 and is safer to avoid for PDF/print output. Share the shared
+// replacements and swap the last step.
+function escape(s: string, apos: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/'/g, apos);
+}
+
+export function escapeXml(s: string): string {
+  return escape(s, '&apos;');
 }
 
 export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return escape(s, '&#39;');
 }

@@ -172,10 +172,10 @@ NOTAM coordinates arrive in several formats that the parsers in [src/lib/coord-p
 One endpoint. Handler: [src/app/api/notams/route.ts](../src/app/api/notams/route.ts).
 
 - **Method:** `GET`.
-- **Auth:** none.
-- **Runtime:** `nodejs` (Playwright cannot run on Edge).
-- **Dynamic:** `force-dynamic` — never statically cached by Next.js.
-- **Cache:** on success, `Cache-Control: public, max-age=300` (5 min browser/CDN cache).
+- **Auth:** none (public feed).
+- **Rate limit:** 30 req/min per client IP, sliding window via `@upstash/ratelimit`. Exceeded → 429 (see below).
+- **Runtime:** `nodejs`. The route reads request headers for rate-limiting, which makes it dynamic — ISR / revalidate do not apply.
+- **Cache:** on success, `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` (1 h fresh + 24 h stale-while-revalidate at the CDN edge).
 - **Response body:** `NotamApiResponse`.
 
 ### Success response (HTTP 200)
@@ -215,7 +215,7 @@ Trimmed example from a live call:
       "effective": "2026-04-24T12:00:00.000Z",
       "expires": "2026-04-24T16:55:00.000Z",
       "eItem": "AD CLSD DUE WIP.)",
-      "category": "airspace",
+      "category": "airport",
       "isActive": false,
       "title": "FA AD CLSD DUE WIP.)",
       "rawText": "(A0338/26 NOTAMN\nQ) LLLL/QFALC/IV/NBO/A /000/999/3201N03453E005\nA) LLBG B) 2604241500 C) 2604241955\nE) AD CLSD DUE WIP.)"
@@ -232,9 +232,38 @@ Trimmed example from a live call:
 - `"Parser returned null for a block"` — a detail page's reconstructed block lacked a NOTAM id regex match.
 - `"Listed 114 NOTAMs but parsed zero blocks"` — global sanity check when all detail fetches failed.
 
-### Error response (HTTP 500)
+### 429 Too Many Requests
 
-Only on a top-level throw inside `scrapeMobileNotams` (e.g. the list page itself failed both attempts). Body shape:
+Returned when the per-IP rate-limit bucket (30/min) is exhausted. Headers:
+
+```
+Retry-After: <seconds until reset>
+X-RateLimit-Limit: 30
+X-RateLimit-Remaining: 0
+Cache-Control: no-store
+```
+
+Body is a `NotamApiResponse` shell with `count: 0` and a single entry in `errors` noting the retry window.
+
+### 503 Service Unavailable
+
+Returned when the KV store holds no snapshot yet (fresh deploy, or the scrape workflow hasn't run). Body:
+
+```json
+{
+  "notams": [],
+  "fetchedAt": "<iso>",
+  "source": "https://brin.iaa.gov.il/MobileAeroinfo/maiNotam.aspx",
+  "count": 0,
+  "errors": ["No cached NOTAMs in KV yet — run the scrape workflow"]
+}
+```
+
+with `Cache-Control: no-store`.
+
+### 500 Internal Server Error
+
+Returned when KV reads throw (transient Upstash failure, etc.). Body shape:
 
 ```json
 {
@@ -246,4 +275,4 @@ Only on a top-level throw inside `scrapeMobileNotams` (e.g. the list page itself
 }
 ```
 
-with `Cache-Control: no-cache`. The response is still shaped as `NotamApiResponse`, so clients can parse it uniformly.
+with `Cache-Control: no-store`. The response is still shaped as `NotamApiResponse`, so clients can parse it uniformly across all statuses.
