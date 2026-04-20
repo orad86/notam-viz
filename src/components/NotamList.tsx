@@ -60,27 +60,14 @@ export default function NotamList({
       )}
 
       <aside
-        style={{ height: '100vh' }}
+        style={{ height: 'calc(100vh - 3rem)' }}
         className={`bg-white border-r border-gray-200 flex flex-col
-          fixed z-[9999] left-0 top-0 md:top-12
-          md:!h-[calc(100vh-3rem)]
+          fixed z-[9999] left-0 top-12
           w-[85%] max-w-sm md:w-80 md:max-w-none
           shadow-xl md:shadow-none
           transform transition-transform duration-200
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
       >
-        <div className="md:hidden flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
-          <span className="font-semibold text-gray-700 text-sm">NOTAMs</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-800 text-xl leading-none px-2"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-
         {routeInput}
         {filterBar}
 

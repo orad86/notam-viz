@@ -9,6 +9,12 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Fixed in v0.3.2
+
+- **Header could disappear on mobile, making the drawer unreachable.** The app header is now `position: fixed top-0 z-[10001]`, pinned above the drawer (which stays at `z-[9999]`). The ☰ hamburger is always tappable regardless of any viewport / browser-chrome quirk.
+- **Drawer layout consolidated.** On both mobile and desktop the drawer now sits at `top-12`, `height: calc(100vh - 3rem)` — one code path, no mobile-vs-desktop fork.
+- **Removed the drawer's own mobile close strip** (the "NOTAMs ✕" row). Redundant now that the header's always-visible hamburger toggles open and close; one less piece of chrome at the top of the drawer.
+
 ## Fixed in v0.3.1
 
 - **Mobile drawer was invisible below the app header.** The NotamList drawer (`z-[60]` previously) was being painted under Leaflet's own panes and controls, which use z-indexes up to 1000. Bumped the drawer to `z-[9999]` and the backdrop to `z-[9000]`, and rendered both via `createPortal` to `document.body` so no ancestor containing block (flex row, `overflow-hidden`, etc.) can clip them. Explicit `height: 100vh` inline style + `md:!h-[calc(100vh-3rem)]` ensures the aside is full viewport on mobile and header-offset on desktop. Backdrop now starts at `top-12` so a ghost tap on the hamburger position doesn't accidentally close the drawer.

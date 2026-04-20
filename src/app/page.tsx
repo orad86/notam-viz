@@ -154,8 +154,8 @@ export default function Home() {
   ) : null;
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
-      <header className="h-12 border-b border-gray-200 flex items-center px-3 md:px-6 bg-gradient-to-r from-blue-600 to-blue-700 gap-3">
+    <div className="h-screen bg-white overflow-hidden relative">
+      <header className="fixed top-0 left-0 right-0 z-[10001] h-12 border-b border-gray-200 flex items-center px-3 md:px-6 bg-gradient-to-r from-blue-600 to-blue-700 gap-3">
         <button
           type="button"
           onClick={() => setSidebarOpen((v) => !v)}
@@ -207,7 +207,7 @@ export default function Home() {
         focusedHiddenHint={focusedHiddenHint}
       />
 
-      <div className="flex-1 relative bg-gray-100 overflow-hidden md:ml-80">
+      <div className="absolute top-12 left-0 right-0 bottom-0 md:left-80 bg-gray-100 overflow-hidden">
           {error && (
             <div className="absolute top-4 left-4 right-4 md:right-auto md:max-w-md bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-40">
               <span className="font-semibold">Error:</span> {error}
