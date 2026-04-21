@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ParsedNotam } from '@/types/notam';
 import { getCategoryColor } from '@/lib/notam-format';
+import { APP_VERSION } from '@/lib/version';
 
 interface NotamListProps {
   filtered: ParsedNotam[];
@@ -19,6 +20,7 @@ interface NotamListProps {
   routeInput?: React.ReactNode;
   routeBanner?: React.ReactNode;
   focusedHiddenHint?: React.ReactNode;
+  onOpenLegal: (doc: 'terms' | 'privacy') => void;
 }
 
 export default function NotamList({
@@ -35,6 +37,7 @@ export default function NotamList({
   routeInput,
   routeBanner,
   focusedHiddenHint,
+  onOpenLegal,
 }: NotamListProps) {
   const rowRefs = useRef(new Map<string, HTMLDivElement | null>());
   const [mounted, setMounted] = useState(false);
@@ -89,7 +92,7 @@ export default function NotamList({
         {routeBanner}
         {focusedHiddenHint}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <div className="divide-y divide-gray-100">
             {totalCount === 0 ? (
               <div className="text-xs text-gray-500 text-center py-6">
@@ -159,6 +162,27 @@ export default function NotamList({
               })
             )}
           </div>
+        </div>
+
+        <div className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-500 flex items-center justify-between gap-2">
+          <span className="tabular-nums">v{APP_VERSION}</span>
+          <span className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenLegal('terms')}
+              className="hover:text-blue-600 hover:underline"
+            >
+              Terms
+            </button>
+            <span aria-hidden>·</span>
+            <button
+              type="button"
+              onClick={() => onOpenLegal('privacy')}
+              className="hover:text-blue-600 hover:underline"
+            >
+              Privacy
+            </button>
+          </span>
         </div>
       </aside>
     </>

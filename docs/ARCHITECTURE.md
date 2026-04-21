@@ -94,7 +94,7 @@ Two separate flows.
 
 ### B) Browser request (KV → UI)
 
-1. Browser loads `/`. `src/app/page.tsx` mounts client-side and `fetch('/api/notams')` on effect.
+1. Browser loads `/`. The server component at `src/app/page.tsx` reads `TERMS.md` and `PRIVACY.md` from the repo root and renders the client `HomePage`, which `fetch('/api/notams')` on effect.
 2. [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) calls `getLatestNotams()` from [src/lib/kv.ts](../src/lib/kv.ts) — a single GET against `{KV_REST_API_URL}/get/notams:latest` with `Authorization: Bearer {KV_REST_API_TOKEN}`.
 3. On hit → responds 200 with `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. On miss (empty KV) → 503 `{ errors: ['No cached NOTAMs in KV yet — run the scrape workflow'] }`. On throw → 500 with the error message.
 4. Page stores the parsed list in React state and renders.
@@ -106,7 +106,7 @@ Two separate flows.
 Next.js App Router. Client entry point plus the one API route.
 
 - [src/app/layout.tsx](../src/app/layout.tsx) — root layout, Inter font, `<title>NOTAM Visualizer</title>`.
-- [src/app/page.tsx](../src/app/page.tsx) — client component. Orchestrates filter + route state, loads KML indices for the route autocomplete, fetches `/api/notams`, renders header + `NotamList` + `NotamFilterBar` + `RouteInput` + `MapView`.
+- [src/app/page.tsx](../src/app/page.tsx) — server component. Reads `TERMS.md` and `PRIVACY.md` from the repo root and passes them to the client `HomePage` so the in-app legal modal has content without a separate route or markdown runtime dep.
 - [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'` (dynamic — reads headers for rate-limiting). Reads KV via `getLatestNotams()`; rate-limits via `checkRateLimit` from [src/lib/rate-limit.ts](../src/lib/rate-limit.ts); emits structured logs via [src/lib/log.ts](../src/lib/log.ts).
 - [src/app/globals.css](../src/app/globals.css) — Tailwind base + Leaflet/divIcon/aviation-label overrides.
 
@@ -132,6 +132,7 @@ Pure-TS library code (no React, no DOM unless marked `'use client'`).
 - [src/lib/log.ts](../src/lib/log.ts) — structured JSON-line logger. `log(level, event, fields)` emits one record per call to stdout (info/debug) or stderr (warn/error). `timer(event)` returns a closure that logs duration on invocation.
 - [src/lib/rate-limit.ts](../src/lib/rate-limit.ts) — `@upstash/ratelimit` sliding window (30/min per IP), fail-open on backend unavailability. `clientKeyFromRequest` derives the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
 - [src/lib/use-click-outside.ts](../src/lib/use-click-outside.ts) — React hook shared by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete.
+- [src/lib/version.ts](../src/lib/version.ts) — re-exports `version` from `package.json` as `APP_VERSION`. Rendered in the sidebar footer next to the Terms / Privacy buttons.
 - [src/lib/export/](../src/lib/export/) — `pdf.ts` (print-dialog HTML), `gpx.ts` (waypoints/tracks), `kml.ts` (placemarks), `download.ts` (Blob trigger + XML/HTML escaping + timestamp suffix).
 
 ### `src/components/`
@@ -145,6 +146,8 @@ All `'use client'`.
 - [src/components/KmlLayer.tsx](../src/components/KmlLayer.tsx) — React-Leaflet LayerGroup that fetches one KML, parses it via `loadKmlPoints`, renders each point as a Marker with `divIcon` (aviation symbol) and a permanent Tooltip (name label).
 - [src/components/ExportMenu.tsx](../src/components/ExportMenu.tsx) — dropdown (PDF / GPX / KML). Props: `notams: ParsedNotam[]`, `variant: 'pill' | 'compact'`.
 - [src/components/SelectionToolbar.tsx](../src/components/SelectionToolbar.tsx) — map overlay that appears only when `selectedIds.size > 0`. Shows count + Clear.
+- [src/components/HomePage.tsx](../src/components/HomePage.tsx) — `'use client'` root for the map page. Orchestrates filter + route + selection + legal-modal state, loads KML indices, fetches `/api/notams`, renders header + `NotamList` + `NotamFilterBar` + `RouteInput` + `MapView` + `LegalModal`. Takes the two legal markdown strings as props from the server page.
+- [src/components/LegalModal.tsx](../src/components/LegalModal.tsx) — overlay dialog that renders a markdown string (tiny inline renderer — headings, paragraphs, lists, bold, code, links, hr). Esc, backdrop click, and close button dismiss it. Triggered from the sidebar footer.
 
 ### `src/types/`
 
@@ -171,10 +174,10 @@ All `'use client'`.
 
 ## Frontend rendering pipeline
 
-1. `src/app/page.tsx` mounts client-side, sets `loading=true`, calls `fetch('/api/notams')`. `MapView` is lazy-imported via `next/dynamic({ ssr: false })` because Leaflet touches `window`.
+1. `HomePage` mounts client-side (rendered by the server `src/app/page.tsx`, which also provides the legal markdown strings), sets `loading=true`, calls `fetch('/api/notams')`. `MapView` is lazy-imported via `next/dynamic({ ssr: false })` because Leaflet touches `window`.
 2. `useNotamFilter(notams)` produces `filtered` (search + category + active-only + time-window + sort applied). If a route is set, a second pass via `notamMatchesRoute` narrows to the route corridor and altitude band → `finalList`.
-3. `finalList` is passed to both `NotamList` (rows) and `MapView` (geometry). The filter bar pill (⬇ N) uses it too, so Export always operates on what's currently visible.
+3. `finalList` is passed to both `NotamList` (rows) and `MapView` (geometry). The filter bar pill (⬇ N) receives `notamsForExport`, which equals the selected NOTAMs when any are checked in the list/map, otherwise falls back to `finalList`.
 4. When the user focuses a NOTAM (list click or shape click), `MapController` in `MapView` flies/fits the map to the geometry and programmatically opens the popup via a ref map keyed by notam id.
-5. Selection multi-state (`selectedIds: Set<string>`) is lifted to `page.tsx`; shift-click on the map, click checkbox in popup, or click checkbox in list row all feed the same Set. Selection is orthogonal to what's exported — export scope is the view, not the selection.
+5. Selection multi-state (`selectedIds: Set<string>`) is lifted to `HomePage`; shift-click on the map, click checkbox in popup, or click checkbox in list row all feed the same Set. Selection drives Export scope (see step 3) but is orthogonal to the filtered view.
 
-No global state library. Filter, route, and selection all live in `page.tsx` and flow through props.
+No global state library. Filter, route, selection, and legal-modal state all live in `HomePage` and flow through props.

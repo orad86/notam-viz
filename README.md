@@ -9,7 +9,7 @@ Interactive map viewer for Israeli Airports Authority (IAA) NOTAMs. A GitHub Act
 - **Time window filter** (`Now / 2h / 24h / 7d / custom`) applies globally to the list and map.
 - **Reference layers.** Airports (LLBG, LLHA, …), navaids, VFR waypoints, IFR intersections rendered with Jeppesen-style SVG symbols and permanent name labels.
 - **Touch-first UI.** Collapsible mobile sidebar (hamburger drawer), popup-first NOTAM detail (no heavy detail card), click-to-deselect on the map, ESC key clears selection, Shift-click for multi-select on desktop, popup checkbox on touch.
-- **Export** the current view (filter + route applied) to PDF, GPX, or KML from an always-visible pill in the filter bar. No multi-select required.
+- **Export** to PDF, GPX, or KML from an always-visible pill in the filter bar. Scope follows selection: checked rows export as a subset; otherwise the current filtered view is used.
 - **Data ops.** Daily GitHub Action scrapes IAA → Upstash Redis. API route reads with `s-maxage=3600, stale-while-revalidate=86400`, rate-limited at 30 req/min per IP.
 - **Tested and gated.** Vitest suite pinning parsers, coord extraction, Q-code mapping, route filter, and scraper validators. CI runs `lint`, `typecheck`, `test` on every PR.
 
