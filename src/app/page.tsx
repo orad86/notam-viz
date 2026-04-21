@@ -117,6 +117,11 @@ export default function Home() {
     return filter.filtered.filter((n) => notamMatchesRoute(n, route));
   }, [filter.filtered, route]);
 
+  const notamsForExport = useMemo(() => {
+    if (selectedIds.size === 0) return finalList;
+    return notams.filter((n) => selectedIds.has(n.id));
+  }, [notams, selectedIds, finalList]);
+
   const isFocusedHidden =
     !!selectedNotam && !finalList.some((n) => n.id === selectedNotam.id);
 
@@ -195,7 +200,7 @@ export default function Home() {
             clearFilters={filter.clearFilters}
             filteredCount={finalList.length}
             totalCount={filter.totalCount}
-            notamsForExport={finalList}
+            notamsForExport={notamsForExport}
           />
         }
         routeInput={

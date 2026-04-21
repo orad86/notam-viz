@@ -253,9 +253,13 @@ async function mintJarWithBrowser(): Promise<Jar> {
 }
 
 async function getJar(forceRefresh: boolean): Promise<Jar> {
-  // Env-var path: always takes precedence, never minted via browser.
-  const fromEnv = envJar();
-  if (fromEnv) return fromEnv;
+  // Env-var path is the default starting point. On `forceRefresh` we skip it,
+  // because a WAF rejection means the env cookies are stale and reusing them
+  // would just reproduce the failure — fall through to a browser mint instead.
+  if (!forceRefresh) {
+    const fromEnv = envJar();
+    if (fromEnv) return fromEnv;
+  }
 
   if (!forceRefresh && cachedJar && Date.now() - cachedJar.mintedAt < JAR_TTL_MS) {
     return cachedJar.jar;
@@ -402,10 +406,10 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
   // same promise. Safe, but the coordination is non-obvious.
   let wafRefreshed = jar !== jarAtStart;
 
-  const usingEnv = isUsingEnvJar();
+  const startedFromEnv = isUsingEnvJar() && !wafRefreshed;
   log('info', 'scrape.list.fetched', {
     count: entries.length,
-    jarSource: usingEnv ? 'env' : wafRefreshed ? 'minted' : 'cached',
+    jarSource: wafRefreshed ? 'minted' : startedFromEnv ? 'env' : 'cached',
   });
 
   const worker = async (entry: NotamListEntry): Promise<string> => {
@@ -417,13 +421,6 @@ export async function scrapeMobileNotams(): Promise<ScrapeResult> {
     }
     if (first.ok) return first.block;
     if (!first.waf) throw new Error(first.reason);
-
-    // Env cookies can't be auto-refreshed; surface a clear message.
-    if (usingEnv) {
-      throw new Error(
-        'WAF challenge with IAA_COOKIE_JAR — cookies likely expired, refresh them from your browser',
-      );
-    }
 
     if (!wafRefreshed) {
       wafRefreshed = true;
