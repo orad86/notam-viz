@@ -227,8 +227,7 @@ Trimmed example from a live call:
 `errors` is omitted when empty. When present it is `string[]`, one entry per failure. Representative entries:
 
 - `"Detail fetch failed for A0012/26 (2003012): fetch failed"` — transient network error after the 800 ms retry.
-- `"Radware WAF challenge returned for https://brin.iaa.gov.il/MobileAeroinfo/maiDetails.aspx?rowID=…&scrpos=0&mode=notam"` — WAF escalated mid-scrape.
-- `"WAF challenge with IAA_COOKIE_JAR — cookies likely expired, refresh them from your browser"` — env-var jar needs rotating.
+- `"Radware WAF challenge returned for https://brin.iaa.gov.il/MobileAeroinfo/maiDetails.aspx?rowID=…&scrpos=0&mode=notam"` — WAF escalated mid-scrape and both the initial cookie jar and the Playwright-minted refresh failed. When only the env cookies were stale, the scraper auto-refreshes via Playwright and you will not see this error.
 - `"Parser returned null for a block"` — a detail page's reconstructed block lacked a NOTAM id regex match.
 - `"Listed 114 NOTAMs but parsed zero blocks"` — global sanity check when all detail fetches failed.
 

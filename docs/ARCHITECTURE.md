@@ -78,10 +78,10 @@ Two separate flows.
 
 1. `.github/workflows/scrape.yml` fires on cron (or manual dispatch) and runs `npx tsx scripts/scrape.ts` with `IAA_COOKIE_JAR`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` injected as secrets.
 2. `scrapeMobileNotams()` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) minting precedence:
-   - If `process.env.IAA_COOKIE_JAR` is set, use it unchanged (no Playwright).
+   - If `process.env.IAA_COOKIE_JAR` is set, use it unchanged (no Playwright) for the initial attempt.
    - Else reuse the module-scoped `cachedJar` if younger than `JAR_TTL_MS` (15 min).
-   - Else mint a fresh jar via headless Chromium (welcome → list → one detail page, reload up to 3× past the Error 100 challenge).
-3. `fetchList(jar)` hits `GET /MobileAeroinfo/maiNotam.aspx`. `isListPageValid` accepts only responses that carry `tr[onclick="rowClicked(...)"]` rows; the negative signals (`<title>Error 100</title>`, `stormcaster.js` probe, body < `LIST_MIN_CHARS` = 20 000) are secondary. Rejection throws `WafChallengeError`; the caller refreshes the jar once and retries.
+   - Else mint a fresh jar via headless Chromium (welcome → list → one detail page, both pages gated by `isListPageValid` / `isDetailPageValid` with up to 3× reload past an Error 100 challenge). On a WAF rejection of the env jar, `getJar(true)` bypasses the env short-circuit and falls through to a fresh Playwright mint — reusing env cookies that just got rejected would only reproduce the failure.
+3. `fetchList(jar)` hits `GET /MobileAeroinfo/maiNotam.aspx`. `isListPageValid` requires `tr[onclick="rowClicked(...)"]` rows; the only negative signals are `<title>Error 100</title>` and body < `LIST_MIN_CHARS` = 20 000 (the `stormcaster.js` probe was a third marker through 0.4.0, dropped in 0.4.1 once Radware started embedding it on authenticated responses too). Rejection throws `WafChallengeError`; the caller refreshes the jar once and retries.
 4. `parseList` emits `{ rowID, notamId, location }[]` (~100-120 entries).
 5. `runPool(entries, worker, CONCURRENCY=4)` fans out detail fetches; each worker waits `jitter()` (200–500 ms), retries once on transient failure, re-mints jar once per scrape on WAF.
 6. `parseNotamBlock` ([src/lib/notam-parser.ts](../src/lib/notam-parser.ts)) turns each raw block into `ParsedNotam`:

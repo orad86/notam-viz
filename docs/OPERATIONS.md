@@ -19,7 +19,7 @@ Configuration, runtime model, error handling, and operator procedures for notam-
 |---|---|---|
 | `KV_REST_API_URL` | Next.js app + scraper | Upstash Redis REST endpoint (e.g. `https://<store>.upstash.io`). The API route reads the latest snapshot from this store; the scraper writes to it. |
 | `KV_REST_API_TOKEN` | Next.js app + scraper | Bearer token for the REST endpoint. For the running web app a read-only token is sufficient (`KV_REST_API_READ_ONLY_TOKEN`); the scraper needs write. |
-| `IAA_COOKIE_JAR` | Scraper only | One-line `Cookie:` header from a logged-in Chrome session on `https://brin.iaa.gov.il/MobileAeroinfo/…`. Lets the scraper skip the Playwright mint path. When the WAF rejects these cookies, the scraper throws a clear "cookies likely expired" error. |
+| `IAA_COOKIE_JAR` | Scraper only | One-line `Cookie:` header from a logged-in Chrome session on `https://brin.iaa.gov.il/MobileAeroinfo/…`. Used as the default starting jar so the scraper can skip the Playwright mint on the fast path. When the WAF rejects these cookies, the scraper falls back to a fresh Playwright mint (see [docs/SCRAPING.md](SCRAPING.md) §Cookie-jar lifecycle). |
 
 A Vercel KV integration auto-injects `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`, `KV_URL`, `REDIS_URL`. Only the first two are read by this codebase.
 
@@ -137,7 +137,7 @@ All three must pass before merging. The `test` gate also prevents regressions on
 
 ## Cookie-jar refresh procedure
 
-Follow this when the scrape workflow fails with `WAF challenge with IAA_COOKIE_JAR — cookies likely expired`.
+Follow this when the scrape workflow fails with a `WafChallengeError` AND the fallback Playwright mint also failed (the env cookies are rejected and the headless-Chromium mint couldn't clear the challenge either). If only the env jar is stale, the scraper now auto-mints via Playwright and keeps running; a forced rotation is only needed when Playwright mints are being blocked from the runner's IP as well.
 
 ### 1. Open the IAA mobile site in your real Chrome
 

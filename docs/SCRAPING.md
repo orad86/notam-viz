@@ -60,7 +60,7 @@ The jar can come from three sources, in precedence order:
 
 ### 1. `IAA_COOKIE_JAR` env var (preferred in practice)
 
-Parsed by `parseCookieHeader` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts). Value is the raw `Cookie:` header string (`name=value; name=value; …`) copied from DevTools. This jar is used as-is and **never auto-refreshed** — if the WAF rejects it during detail fetches, the worker throws a clear "cookies likely expired" error.
+Parsed by `parseCookieHeader` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts). Value is the raw `Cookie:` header string (`name=value; name=value; …`) copied from DevTools. The env jar is used as the default starting point. If the WAF rejects it (list fetch or a worker), `getJar(true)` skips the env short-circuit and mints a fresh jar with Playwright — the env cookies aren't re-used after a rejection, since replaying them would just reproduce the failure.
 
 Why this is the preferred path: headless Chromium (even with `navigator.webdriver` hidden, `window.chrome = {runtime:{}}`, locale/timezone set to `Asia/Jerusalem`) frequently fails the stormcaster challenge on IPs that have made previous programmatic requests. Radware escalates per-IP risk based on historical behaviour. A cookie pasted from a passing-in-anger human browser carries the "human" signal and keeps working for its cookie lifetime.
 
@@ -81,7 +81,7 @@ args: [
 
 and on every new page installs an `addInitScript` that redefines `navigator.webdriver`, `navigator.languages`, `navigator.plugins`, and `window.chrome`. Context options: `userAgent` = Chrome 147 macOS, `locale: 'en-US'`, `timezoneId: 'Asia/Jerusalem'`, `viewport: 1280×800`.
 
-It then navigates `maiwelcome.aspx` → `maiNotam.aspx` → one `maiDetails.aspx` (picking the first `rowID` from the list). For the detail page, it retries up to 3× with a 4 s `waitForTimeout` between reloads to give `stormcaster.js` time to complete its crypto challenge and swap the Error 100 page for real content. If the title is still `Error 100` after the final reload, it throws `WafChallengeError` and the caller surfaces the error. On success it reads `context.cookies()` into a `Map<string, string>`.
+It then navigates `maiwelcome.aspx` → `maiNotam.aspx` → one `maiDetails.aspx` (picking the first `rowID` from the list). Both the list and the detail page are validated with `isListPageValid`/`isDetailPageValid` and retried up to 3× with a 4 s `waitForTimeout` between reloads, to give `stormcaster.js` time to complete its crypto challenge. If either page fails validation after the final reload, it throws `WafChallengeError` and the caller surfaces the error. (This list-page gate was added after a silent-failure bug: without it, a challenged list page left `rowID=null`, the detail check was skipped, and the mint returned challenge-only cookies that then failed on replay.) On success it reads `context.cookies()` into a `Map<string, string>`.
 
 Concurrency-safety: the first call to `getJar(...)` sets `jarMintLock` to the in-flight promise; subsequent callers join it instead of launching a second browser. Even `forceRefresh=true` joins an in-flight mint (by design — the concurrent caller already asked for a fresh jar).
 
@@ -129,10 +129,9 @@ Summary of retry layers:
 
 | Layer | Trigger | Action |
 |---|---|---|
-| List | `WafChallengeError` (HTTP 200 + Error-100 body or body < 20 KB) | `getJar(true)` once, retry list fetch. |
+| List | `WafChallengeError` (HTTP 200 + Error-100 body or body < 20 KB) | `getJar(true)` once, retry list fetch. Force-refresh bypasses the env short-circuit and mints via Playwright. |
 | Worker (non-WAF) | `HTTP != 200` or `Empty detail body` | `sleep(800)`, retry once. |
-| Worker (WAF) with env jar | `IAA_COOKIE_JAR` present | Throw: `WAF challenge with IAA_COOKIE_JAR — cookies likely expired…`. |
-| Worker (WAF) without env jar | No env jar, first request to hit WAF | `getJar(true)` once per scrape (`wafRefreshed` flag), retry. |
+| Worker (WAF), first per scrape | `wafRefreshed` flag false | `getJar(true)` once per scrape (regardless of env-jar presence), retry the detail fetch. |
 | Second attempt still WAF | Any | Throw `WafChallengeError` for that rowID → appears in `response.errors[]`. |
 
 Failures do not abort the whole scrape — they become per-rowID strings in `errors[]` alongside the partial `notams[]` result.
@@ -141,10 +140,10 @@ Failures do not abort the whole scrape — they become per-rowID strings in `err
 
 Known symptoms and what they mean:
 
-- **`count: 0`, all errors are `WAF challenge with IAA_COOKIE_JAR — cookies likely expired, refresh them from your browser`.**
-  The env-var cookies are no longer valid. Re-extract them (see [docs/OPERATIONS.md](OPERATIONS.md) §Cookie-jar refresh).
-- **`count: 0`, errors contain `Radware WAF challenge returned for https://…/maiDetails.aspx?rowID=…`, and `IAA_COOKIE_JAR` is unset.**
-  Playwright failed to pass the challenge. The common cause is that the host IP has been flagged by Radware. Paste a cookie jar from a real browser instead.
+- **Every fetch throws `WafChallengeError` even though the live site works in a browser.**
+  Check whether a signal that's supposed to mark only challenge pages (historically `stormcaster.js`, now only the `<title>Error 100</title>`) is showing up on authenticated pages too. Radware has previously rolled out its probe script to successful responses; if `hasChallengeMarker` trips on a real page, `isListPageValid` rejects everything and the scraper loops through retries that all "fail". Validate by dumping `htmlLength` / `title` / individual markers inside the mint, as done during the 0.4.1 fix.
+- **`count: 0`, errors contain `Radware WAF challenge returned for https://…`.**
+  The env jar is rejected AND the Playwright mint also failed to clear the challenge. Common causes: host IP flagged by Radware (try from a different network), Playwright UA / `sec-ch-ua` drift from the version you last pasted cookies from, or a true upstream outage. Re-extract cookies from a real browser as the first remediation (see [docs/OPERATIONS.md](OPERATIONS.md) §Cookie-jar refresh).
 - **`count: 0`, error is `List page parsed zero NOTAMs`.**
   The mobile list DOM changed (likely `td.DivRecordID` / `tr[onclick^="rowClicked"]` selectors). Update [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) `parseList`.
 - **`count` is close to the expected ~114 but a handful of entries are in `errors[]` with `fetch failed`.**
