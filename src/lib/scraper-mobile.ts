@@ -89,14 +89,13 @@ function envJar(): Jar | null {
   return jar.size > 0 ? jar : null;
 }
 
-// Belt-and-braces negative signal: either the Radware "Error 100" title OR
-// the stormcaster.js probe script that only the challenge page loads. If
-// Radware changes the title text without touching the probe (or vice versa),
-// we still catch the page. Either signal alone is enough.
+// Negative signal: the Radware "Error 100" title is the only reliable marker
+// for a challenge page. We used to also flag pages containing stormcaster.js,
+// but Radware now embeds that probe on authenticated responses too — it was
+// false-positiving every real list/detail fetch and making the scraper
+// unusable. Rely on the title plus the positive-signal row/marker checks.
 function hasChallengeMarker(html: string): boolean {
-  if (/<title>\s*Error\s*100\s*<\/title>/i.test(html)) return true;
-  if (/stormcaster(?:\.[a-z0-9]+)?\.js/i.test(html)) return true;
-  return false;
+  return /<title>\s*Error\s*100\s*<\/title>/i.test(html);
 }
 
 // Positive-signal validation: the list page is real iff it carries rows with
@@ -210,6 +209,20 @@ async function mintJarWithBrowser(): Promise<Jar> {
     // a challenge-passed cookie bound to our IP.
     await page.goto(WELCOME_URL, { waitUntil: 'networkidle' });
     await page.goto(LIST_URL, { waitUntil: 'networkidle' });
+
+    // The list page itself may return a Radware challenge. Retry until it
+    // clears, or throw — previously we skipped straight to rowID lookup and
+    // silently returned challenge cookies when the list was still blocked.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const html = await page.content();
+      if (isListPageValid(html)) break;
+      await page.waitForTimeout(4000);
+      await page.reload({ waitUntil: 'networkidle' }).catch(() => {});
+    }
+    const listHtml = await page.content();
+    if (!isListPageValid(listHtml)) {
+      throw new WafChallengeError(LIST_URL);
+    }
 
     // Find one rowID on the list and visit its detail so the WAF sees a
     // detail-page access in a browser context before we replay plain HTTP.

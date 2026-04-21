@@ -38,6 +38,17 @@ describe('isListPageValid', () => {
     const filler = 'x'.repeat(30000);
     expect(isListPageValid(filler)).toBe(false);
   });
+
+  // Regression: Radware embeds stormcaster.js on authenticated pages too, so
+  // its presence alone must not mark the page as a challenge. Only the
+  // Error 100 title is a reliable negative signal.
+  it('accepts a real page that still loads stormcaster.js', () => {
+    const withProbe = listOk.replace(
+      '</body>',
+      '<script src="/stormcaster.abc123.js"></script></body>',
+    );
+    expect(isListPageValid(withProbe)).toBe(true);
+  });
 });
 
 describe('isDetailPageValid', () => {
