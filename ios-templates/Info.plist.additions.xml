@@ -17,6 +17,14 @@
 <key>UIRequiresFullScreen</key>
 <true/>
 
+<!-- Make app's Documents directory visible in the Files app so exported
+     GPX/KML/HTML files saved via @capacitor/filesystem show up under
+     "On My iPhone → NOTAM IL". No user-facing permission prompt. -->
+<key>UIFileSharingEnabled</key>
+<true/>
+<key>LSSupportsOpeningDocumentsInPlace</key>
+<true/>
+
 <key>UIStatusBarStyle</key>
 <string>UIStatusBarStyleLightContent</string>
 

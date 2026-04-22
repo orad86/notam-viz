@@ -49,5 +49,9 @@
 	<string>NOTAM IL shows your position on the map so you can see nearby NOTAMs. Your location never leaves this device.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 </dict>
 </plist>

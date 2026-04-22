@@ -11,6 +11,15 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Shipped in v0.5.1
+
+Export pipeline fix for the Capacitor iOS shell.
+
+- **Export saves to device storage.** [src/lib/export/download.ts](../src/lib/export/download.ts) now detects `window.Capacitor.isNativePlatform()` and writes GPX / KML / exported HTML into the app's Documents directory via `@capacitor/filesystem`, then offers the saved file URL to the native share sheet. The `<a download>` path remains for desktop browsers.
+- **PDF export no longer pops up.** [src/lib/export/pdf.ts](../src/lib/export/pdf.ts) renders into a hidden iframe and calls `iframe.contentWindow.print()` on desktop (replaces the blocked `window.open('_blank')`); on iOS it saves the self-contained HTML file via the same Filesystem path so users can open it in Safari or Files and print to PDF.
+- **Files app visibility.** `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` added to [ios/App/App/Info.plist](../ios/App/App/Info.plist) and [ios-templates/Info.plist.additions.xml](../ios-templates/Info.plist.additions.xml) so exported files show up under **On My iPhone → NOTAM IL** in the iOS Files app. No user-facing permission prompt — apps own their Documents sandbox on iOS.
+- **New plugin.** `@capacitor/filesystem@^7` added to devDependencies; synced into the Xcode project.
+
 ## Shipped in v0.5.0
 
 Mobile / App Store delivery pass. The web UI, parsers, and export pipeline are unchanged; everything new is additive.

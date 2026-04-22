@@ -1,8 +1,22 @@
-export function triggerDownload(
+// Deliver a generated file to the user.
+//
+// iOS (Capacitor): write to the app's Documents directory via
+// @capacitor/filesystem, then offer the native share sheet pointing at the
+// saved file. The file is visible in the Files app under
+// "On My iPhone → NOTAM IL" once UIFileSharingEnabled +
+// LSSupportsOpeningDocumentsInPlace are set in Info.plist.
+//
+// Desktop: standard <a download> click.
+export async function triggerDownload(
   filename: string,
   mime: string,
   content: string,
-): void {
+): Promise<void> {
+  if (isCapacitorNative()) {
+    await saveOnDevice(filename, mime, content);
+    return;
+  }
+
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -12,6 +26,49 @@ export function triggerDownload(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+interface CapacitorGlobal {
+  isNativePlatform?: () => boolean;
+}
+
+function isCapacitorNative(): boolean {
+  if (typeof window === 'undefined') return false;
+  const cap = (window as unknown as { Capacitor?: CapacitorGlobal }).Capacitor;
+  return !!cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform();
+}
+
+async function saveOnDevice(
+  filename: string,
+  mime: string,
+  content: string,
+): Promise<void> {
+  const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+  const { Share } = await import('@capacitor/share');
+
+  const written = await Filesystem.writeFile({
+    path: filename,
+    data: content,
+    directory: Directory.Documents,
+    encoding: Encoding.UTF8,
+    recursive: true,
+  });
+
+  try {
+    await Share.share({
+      title: filename,
+      url: written.uri,
+      dialogTitle: 'Save or share NOTAM export',
+    });
+  } catch (err) {
+    if (err instanceof Error && /cancel/i.test(err.message)) return;
+    // Share unavailable — the file is already saved; nothing else to do.
+  }
+
+  // Keep mime in the signature so the caller can stay format-agnostic even
+  // though Filesystem infers type from the extension. Reference to silence
+  // the unused-param lint without changing the API.
+  void mime;
 }
 
 export function timestampSuffix(): string {
