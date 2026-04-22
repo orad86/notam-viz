@@ -28,6 +28,11 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* Stop iOS from bumping text size on rotation and from double-tap zoom
+     outside of Leaflet. The map handles its own pinch/zoom. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 #__next {

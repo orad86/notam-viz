@@ -11,6 +11,13 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Shipped in v0.5.2
+
+iOS WKWebView viewport hardening.
+
+- **Lock page scale.** [src/app/layout.tsx](../src/app/layout.tsx) viewport now sets `maximumScale: 1`, `minimumScale: 1`, `userScalable: false`. WKWebView no longer double-tap-zooms or rescales on orientation change. Leaflet's own pinch/zoom is unaffected — the map still zooms.
+- **Stop text auto-scaling.** [src/app/globals.css](../src/app/globals.css) adds `-webkit-text-size-adjust: 100%` (kills iOS' rotation text-resize) and `touch-action: manipulation` on `html, body` (removes the 300ms double-tap delay and its zoom side-effect).
+
 ## Shipped in v0.5.1
 
 Export pipeline fix for the Capacitor iOS shell.
