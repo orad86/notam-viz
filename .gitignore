@@ -34,3 +34,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ios / capacitor
+/ios/App/Pods/
+/ios/App/App/public/
+/ios/App/App/capacitor.config.json
+/ios/App/build/
+/ios/DerivedData/
+/ios/**/xcuserdata/
+/ios/capacitor-cordova-ios-plugins/

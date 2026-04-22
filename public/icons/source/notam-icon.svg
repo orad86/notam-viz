@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>NOTAM IL</title>
+  <rect width="1024" height="1024" fill="#0f172a"/>
+  <g fill="none" stroke="#38bdf8" stroke-width="6" opacity="0.55">
+    <circle cx="512" cy="512" r="372"/>
+    <circle cx="512" cy="512" r="300"/>
+    <circle cx="512" cy="512" r="228"/>
+  </g>
+  <g stroke="#38bdf8" stroke-width="6" stroke-linecap="round" opacity="0.55">
+    <line x1="512" y1="118" x2="512" y2="170"/>
+    <line x1="512" y1="854" x2="512" y2="906"/>
+    <line x1="118" y1="512" x2="170" y2="512"/>
+    <line x1="854" y1="512" x2="906" y2="512"/>
+    <line x1="234" y1="234" x2="270" y2="270"/>
+    <line x1="754" y1="754" x2="790" y2="790"/>
+    <line x1="234" y1="790" x2="270" y2="754"/>
+    <line x1="754" y1="270" x2="790" y2="234"/>
+  </g>
+  <path d="M 512 232 L 852 808 L 172 808 Z"
+        fill="#fbbf24" stroke="#f59e0b" stroke-width="18" stroke-linejoin="round"/>
+  <rect x="486" y="400" width="52" height="216" rx="14" fill="#0f172a"/>
+  <circle cx="512" cy="702" r="32" fill="#0f172a"/>
+</svg>

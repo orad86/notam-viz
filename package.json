@@ -1,6 +1,6 @@
 {
   "name": "notam-viz",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "scrape": "tsx scripts/scrape.ts"
+    "scrape": "tsx scripts/scrape.ts",
+    "icons": "node scripts/generate-icons.mjs",
+    "ios:build": "node scripts/ios-build.mjs",
+    "ios:open": "cap open ios"
   },
   "engines": {
     "node": ">=20"
@@ -27,6 +30,13 @@
     "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.2",
+    "@capacitor/core": "^7.6.2",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/ios": "^7.6.2",
+    "@capacitor/share": "^7.0.4",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^18",
@@ -38,6 +48,7 @@
     "eslint-config-next": "^14.2.35",
     "playwright": "^1.59.1",
     "postcss": "^8",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.19.2",
     "typescript": "^5",

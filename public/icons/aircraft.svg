@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Aircraft position</title>
+  <path d="M32 4
+           L36 28
+           L60 40
+           L60 44
+           L36 38
+           L36 52
+           L44 57
+           L44 60
+           L32 57
+           L20 60
+           L20 57
+           L28 52
+           L28 38
+           L4 44
+           L4 40
+           L28 28 Z"
+        fill="#1d4ed8" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+</svg>

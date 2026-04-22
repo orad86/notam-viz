@@ -15,6 +15,7 @@ import {
   notamMatchesRoute,
 } from '@/lib/route-filter';
 import { loadKmlPoints } from '@/lib/kml-layer';
+import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
@@ -40,6 +41,7 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
   const [legalDoc, setLegalDoc] = useState<'terms' | 'privacy' | null>(null);
 
   const filter = useNotamFilter(notams);
+  const location = useDeviceLocation();
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -56,7 +58,8 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch('/api/notams');
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+        const response = await fetch(`${apiBase}/api/notams`);
         if (!response.ok) throw new Error(`API error: ${response.status}`);
         const data: NotamApiResponse = await response.json();
         if (cancelled) return;
@@ -179,6 +182,23 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
         <span className="text-white text-base md:text-lg font-bold">
           ✈ NOTAM Visualizer
         </span>
+        <button
+          type="button"
+          onClick={() => (location.enabled ? location.stop() : location.start())}
+          className={`ml-auto text-[11px] md:text-xs px-2.5 py-1 rounded border font-semibold ${
+            location.enabled
+              ? 'bg-white text-blue-700 border-white'
+              : 'bg-blue-700/40 text-white border-white/40 hover:bg-blue-700/60'
+          }`}
+          aria-pressed={location.enabled}
+          title={
+            location.status === 'denied'
+              ? 'Location permission denied'
+              : 'Show my position'
+          }
+        >
+          {location.enabled ? 'Tracking' : 'My position'}
+        </button>
       </header>
 
       <NotamList
@@ -252,6 +272,7 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
               onToggleSelect={toggleSelect}
               onClearSelection={clearSelection}
               route={route}
+              userLocation={location.enabled ? location.fix : null}
             />
           )}
       </div>

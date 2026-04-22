@@ -3,12 +3,26 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.5.0](#shipped-in-v050)
 - [Shipped in v0.4.0](#shipped-in-v040)
 - [Fixed in v0.3.x](#fixed-in-v033)
 - [Testing](#testing)
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.5.0
+
+Mobile / App Store delivery pass. The web UI, parsers, and export pipeline are unchanged; everything new is additive.
+
+- **PWA foundation.** [public/manifest.webmanifest](../public/manifest.webmanifest), [public/sw.js](../public/sw.js), and [src/app/register-sw.tsx](../src/app/register-sw.tsx). Service worker precaches the shell and network-first-with-fallback for `/api/notams` under a single cache key, so the last successful response survives airplane mode. Apple web-app meta (`apple-mobile-web-app-capable`, `viewport-fit=cover`) wired into [src/app/layout.tsx](../src/app/layout.tsx).
+- **Device location + aircraft marker.** [src/hooks/useDeviceLocation.ts](../src/hooks/useDeviceLocation.ts) wraps `navigator.geolocation.watchPosition`. [src/components/UserLocationLayer.tsx](../src/components/UserLocationLayer.tsx) renders a rotating SVG DivIcon (heading-aware; falls back to a dot at zero speed) plus an accuracy circle. Wired into [src/components/MapView.tsx](../src/components/MapView.tsx) as an additive layer and toggled from the header in [src/components/HomePage.tsx](../src/components/HomePage.tsx). Fix stays in the webview — never transmitted anywhere.
+- **iOS app via Capacitor.** [capacitor.config.ts](../capacitor.config.ts) + the `ios/` directory wrap a `next export` static bundle. Pinned to Capacitor `^7.x` because the repo targets Node 20 (v8 needs Node 22). Plugins: status-bar, splash-screen, share, haptics. Geolocation uses the browser API directly — no extra plugin needed.
+- **Conditional static export.** [next.config.mjs](../next.config.mjs) emits `output: 'export'` only under `IOS_BUILD=1`. [scripts/ios-build.mjs](../scripts/ios-build.mjs) moves `src/app/api` aside for the export (route handlers aren't exported), runs icons, and `cap sync`s. The Vercel SSR build is untouched.
+- **App icon.** [public/icons/source/notam-icon.svg](../public/icons/source/notam-icon.svg) — 1024×1024 caution triangle over a compass rose on navy. [scripts/generate-icons.mjs](../scripts/generate-icons.mjs) rasterises via `sharp` into the PWA set (180/192/512/1024) and the unified iOS AppIcon (1024, no alpha, as Apple requires).
+- **App Store compliance.** [ios-templates/Info.plist.additions.xml](../ios-templates/Info.plist.additions.xml) and [ios-templates/PrivacyInfo.xcprivacy](../ios-templates/PrivacyInfo.xcprivacy) applied to the scaffolded iOS project: `NSLocationWhenInUseUsageDescription`, `ITSAppUsesNonExemptEncryption=false`, required-reason API declarations. Privacy nutrition label = "Data Not Collected".
+- **CORS on `/api/notams`.** [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) now sends `Access-Control-Allow-Origin: *` on every code path plus an `OPTIONS` handler. Capacitor's `capacitor://localhost` origin is cross-origin; without this the iOS shell could not fetch the feed. Safe — the endpoint is read-only GET with no cookies or auth.
+- **iOS docs.** [docs/IOS.md](IOS.md) captures the install line, the one remaining Xcode GUI step (adding `PrivacyInfo.xcprivacy` to the app target), and the App Store release checklist.
 
 ## Shipped in v0.4.0
 

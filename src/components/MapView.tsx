@@ -33,6 +33,8 @@ import {
 } from '@/lib/notam-format';
 import KmlLayer from './KmlLayer';
 import SelectionToolbar from './SelectionToolbar';
+import UserLocationLayer from './UserLocationLayer';
+import type { DeviceFix } from '@/hooks/useDeviceLocation';
 import {
   Route,
   buildCorridorPolygon,
@@ -264,6 +266,7 @@ interface MapViewProps {
   onToggleSelect: (id: string) => void;
   onClearSelection: () => void;
   route: Route | null;
+  userLocation?: DeviceFix | null;
 }
 
 function isToggleClick(e: LeafletMouseEvent): boolean {
@@ -400,6 +403,7 @@ export default function MapView({
   onToggleSelect,
   onClearSelection,
   route,
+  userLocation,
 }: MapViewProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState<Record<LayerKey, boolean>>({
@@ -781,6 +785,8 @@ export default function MapView({
             ))}
           </>
         )}
+
+        {userLocation && <UserLocationLayer fix={userLocation} />}
 
         {visible.circle && grouped.circle.map(renderCircle)}
         {visible.polygon && grouped.polygon.map(renderPolygon)}

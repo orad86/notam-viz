@@ -16,6 +16,20 @@ export const runtime = 'nodejs';
 
 const CACHE_HEADER = `public, s-maxage=${CACHE_MAX_AGE_SECONDS}, stale-while-revalidate=${CACHE_STALE_SECONDS}`;
 
+// Allow cross-origin reads so the Capacitor iOS shell (origin
+// `capacitor://localhost`) and any embedders can fetch the public NOTAM feed.
+// The endpoint is read-only GET with no cookies or auth, so `*` is safe.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+};
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET(req: NextRequest) {
   const start = Date.now();
 
@@ -38,6 +52,7 @@ export async function GET(req: NextRequest) {
       {
         status: 429,
         headers: {
+          ...CORS_HEADERS,
           'Cache-Control': 'no-store',
           'Retry-After': String(retryAfterSec),
           'X-RateLimit-Limit': String(rl.limit),
@@ -60,7 +75,7 @@ export async function GET(req: NextRequest) {
           count: 0,
           errors: ['No cached NOTAMs in KV yet — run the scrape workflow'],
         } as NotamApiResponse,
-        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+        { status: 503, headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' } },
       );
     }
 
@@ -69,7 +84,7 @@ export async function GET(req: NextRequest) {
       durationMs: Date.now() - start,
     });
     return NextResponse.json(cached, {
-      headers: { 'Cache-Control': CACHE_HEADER },
+      headers: { ...CORS_HEADERS, 'Cache-Control': CACHE_HEADER },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -85,7 +100,7 @@ export async function GET(req: NextRequest) {
         count: 0,
         errors: [message],
       } as NotamApiResponse,
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      { status: 500, headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' } },
     );
   }
 }

@@ -10,6 +10,8 @@ Interactive map viewer for Israeli Airports Authority (IAA) NOTAMs. A GitHub Act
 - **Reference layers.** Airports (LLBG, LLHA, …), navaids, VFR waypoints, IFR intersections rendered with Jeppesen-style SVG symbols and permanent name labels.
 - **Touch-first UI.** Collapsible mobile sidebar (hamburger drawer), popup-first NOTAM detail (no heavy detail card), click-to-deselect on the map, ESC key clears selection, Shift-click for multi-select on desktop, popup checkbox on touch.
 - **Export** to PDF, GPX, or KML from an always-visible pill in the filter bar. Scope follows selection: checked rows export as a subset; otherwise the current filtered view is used.
+- **Device location + aircraft marker.** `My position` in the header requests Geolocation, drops a rotating aircraft icon at your fix, and draws an accuracy circle. Fix stays on-device — never transmitted.
+- **Installable PWA / iOS app.** Web app ships a manifest + service worker (last-response cache for `/api/notams`, offline shell). A Capacitor wrapper in `ios/` bundles the same UI as a native iOS app — see [docs/IOS.md](docs/IOS.md).
 - **Data ops.** Daily GitHub Action scrapes IAA → Upstash Redis. API route reads with `s-maxage=3600, stale-while-revalidate=86400`, rate-limited at 30 req/min per IP.
 - **Tested and gated.** Vitest suite pinning parsers, coord extraction, Q-code mapping, route filter, and scraper validators. CI runs `lint`, `typecheck`, `test` on every PR.
 
@@ -64,7 +66,8 @@ gh workflow run "Daily Scrape"
 - [docs/REFERENCE.md](docs/REFERENCE.md) — `ParsedNotam` shape, geometry union, Q-code decoder tables, `GET /api/notams` contract.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — env vars (KV + cookie jar), daily scrape workflow, deployment notes, cookie-jar refresh procedure.
 - [docs/TESTING.md](docs/TESTING.md) — Vitest setup, fixtures, conventions, coverage gaps.
-- [docs/ROADMAP.md](docs/ROADMAP.md) — v0.4.0 release notes, testing state, security posture, known technical debt.
+- [docs/IOS.md](docs/IOS.md) — Capacitor wrapper setup, App Store compliance checklist, release steps.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — release notes, testing state, security posture, known technical debt.
 - [CLAUDE.md](CLAUDE.md) — agent-facing guidance for editing this repo.
 
 ## Scripts
@@ -79,6 +82,9 @@ gh workflow run "Daily Scrape"
 | `npm run test` | Run the Vitest suite once. |
 | `npm run test:watch` | Vitest in watch mode for local development. |
 | `npm run scrape` | `tsx scripts/scrape.ts` — one-shot scrape → KV (also what the GitHub Action runs). |
+| `npm run icons` | Rasterise `public/icons/source/notam-icon.svg` into the PWA + iOS AppIcon PNG set. Requires `sharp`. |
+| `npm run ios:build` | Static export (no API route) + icons + `cap sync ios`. Requires `NEXT_PUBLIC_API_BASE=https://<prod>`. |
+| `npm run ios:open` | `cap open ios` — open the Xcode workspace. |
 
 ## Source of truth
 
