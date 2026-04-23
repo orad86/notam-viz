@@ -6,13 +6,13 @@ import RegisterSW from './register-sw';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'NOTAM IL',
+  title: 'NOTAM Visualizer',
   description: 'Interactive map visualization of Israeli IAA NOTAMs',
   manifest: '/manifest.webmanifest',
-  applicationName: 'NOTAM IL',
+  applicationName: 'NOTAM Visualizer',
   appleWebApp: {
     capable: true,
-    title: 'NOTAM IL',
+    title: 'NOTAM Visualizer',
     statusBarStyle: 'black-translucent',
   },
   icons: {

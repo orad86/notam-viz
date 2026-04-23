@@ -1,6 +1,6 @@
 {
-  "name": "NOTAM IL",
-  "short_name": "NOTAM IL",
+  "name": "NOTAM Visualizer",
+  "short_name": "NOTAM Visualizer",
   "description": "Interactive map of Israeli IAA NOTAMs",
   "start_url": "/",
   "scope": "/",

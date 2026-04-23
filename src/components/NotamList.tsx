@@ -167,6 +167,15 @@ export default function NotamList({
         <div className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-500 flex items-center justify-between gap-2 safe-bottom">
           <span className="tabular-nums">v{APP_VERSION}</span>
           <span className="flex items-center gap-2">
+            <a
+              href="/support"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-blue-600 hover:underline"
+            >
+              Support
+            </a>
+            <span aria-hidden>·</span>
             <button
               type="button"
               onClick={() => onOpenLegal('terms')}

@@ -3,7 +3,7 @@
 // iOS (Capacitor): write to the app's Documents directory via
 // @capacitor/filesystem, then offer the native share sheet pointing at the
 // saved file. The file is visible in the Files app under
-// "On My iPhone → NOTAM IL" once UIFileSharingEnabled +
+// "On My iPhone → NOTAM Visualizer" once UIFileSharingEnabled +
 // LSSupportsOpeningDocumentsInPlace are set in Info.plist.
 //
 // Desktop: standard <a download> click.

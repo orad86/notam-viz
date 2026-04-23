@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'il.notamviz.app',
-  appName: 'NOTAM IL',
+  appName: 'NOTAM Visualizer',
   webDir: 'out',
   ios: {
     contentInset: 'always',

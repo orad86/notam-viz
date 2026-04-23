@@ -134,6 +134,14 @@ Pure-TS library code (no React, no DOM unless marked `'use client'`).
 - [src/lib/use-click-outside.ts](../src/lib/use-click-outside.ts) — React hook shared by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete.
 - [src/lib/version.ts](../src/lib/version.ts) — re-exports `version` from `package.json` as `APP_VERSION`. Rendered in the sidebar footer next to the Terms / Privacy buttons.
 - [src/lib/export/](../src/lib/export/) — `pdf.ts` (print-dialog HTML), `gpx.ts` (waypoints/tracks), `kml.ts` (placemarks), `download.ts` (Blob trigger + XML/HTML escaping + timestamp suffix).
+- [src/lib/render-markdown.tsx](../src/lib/render-markdown.tsx) — minimal markdown → React renderer (headings, paragraphs, lists, bold, code, links, hr). Shared by `LegalModal` (in-app) and the public docs pages so the markdown styling stays in one place.
+
+### `src/app/` route pages
+
+- [src/app/page.tsx](../src/app/page.tsx) — server component. Reads `TERMS.md` and `PRIVACY.md` at build time, passes them to `<HomePage />`.
+- [src/app/support/page.tsx](../src/app/support/page.tsx) — public Support page (statically rendered). Quick start, filtering, route planner, exports, position layer, troubleshooting, contact. Used as the App Store Connect Support URL.
+- [src/app/privacy/page.tsx](../src/app/privacy/page.tsx) — renders `PRIVACY.md` via `renderMarkdown`. Used as the App Store Connect Privacy Policy URL.
+- [src/app/terms/page.tsx](../src/app/terms/page.tsx) — renders `TERMS.md` via `renderMarkdown`.
 
 ### `src/components/`
 
@@ -147,8 +155,9 @@ All `'use client'`.
 - [src/components/ExportMenu.tsx](../src/components/ExportMenu.tsx) — dropdown (PDF / GPX / KML). Props: `notams: ParsedNotam[]`, `variant: 'pill' | 'compact'`.
 - [src/components/SelectionToolbar.tsx](../src/components/SelectionToolbar.tsx) — map overlay that appears only when `selectedIds.size > 0`. Shows count + Clear.
 - [src/components/HomePage.tsx](../src/components/HomePage.tsx) — `'use client'` root for the map page. Orchestrates filter + route + selection + disclaimer + legal-modal state, loads KML indices, fetches `/api/notams`, renders header + `NotamList` + `NotamFilterBar` + `RouteInput` + `MapView` + `DisclaimerModal` + `LegalModal`. Takes the two legal markdown strings as props from the server page.
-- [src/components/LegalModal.tsx](../src/components/LegalModal.tsx) — overlay dialog that renders a markdown string (tiny inline renderer — headings, paragraphs, lists, bold, code, links, hr). Esc, backdrop click, and close button dismiss it. Triggered from the sidebar footer or from inside `DisclaimerModal`. z-index `z-[10030]` so it stacks above the disclaimer.
+- [src/components/LegalModal.tsx](../src/components/LegalModal.tsx) — overlay dialog that renders a markdown string via the shared `renderMarkdown`. Esc, backdrop click, and close button dismiss it. Triggered from the sidebar footer or from inside `DisclaimerModal`. z-index `z-[10030]` so it stacks above the disclaimer.
 - [src/components/DisclaimerModal.tsx](../src/components/DisclaimerModal.tsx) — startup disclaimer; shown on every launch, requires explicit Accept to dismiss (no Esc / backdrop dismissal, no localStorage gate). Footer row exposes `APP_VERSION` and inline Terms / Privacy buttons that call into the same `setLegalDoc` setter as the sidebar footer. z-index `z-[10020]`.
+- [src/components/DocsLayout.tsx](../src/components/DocsLayout.tsx) — shared shell for `/support`, `/privacy`, `/terms`: header link back to the app, scroll container (`100dvh`, `overflow-y: auto`), centered max-width main, footer with version + cross-links + safe-area padding.
 
 ### `src/types/`
 
