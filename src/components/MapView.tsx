@@ -28,7 +28,6 @@ import {
   formatAltitudeRange,
   formatScope,
   formatTraffic,
-  getCategoryColor,
   FIR_SCALE_RADIUS_NM,
 } from '@/lib/notam-format';
 import KmlLayer from './KmlLayer';
@@ -188,15 +187,26 @@ function bboxArea(n: ParsedNotam): number {
   return (latMax - latMin) * (lonMax - lonMin);
 }
 
+const NOTAM_COLOR = '#dc2626';
+const NOTAM_SELECTED_COLOR = '#991b1b';
+const NOTAM_FILL_OPACITY = 0.03;
+const NOTAM_FILL_OPACITY_FOCUSED = 0.08;
+const NOTAM_FILL_OPACITY_SELECTED = 0.15;
+const NOTAM_STROKE_OPACITY = 0.35;
+const NOTAM_WEIGHT = 3;
+const NOTAM_WEIGHT_FOCUSED = 4;
+const NOTAM_WEIGHT_SELECTED = 5;
+const NOTAM_SELECTED_DASH = '6 4';
+
 const LAYER_META: Array<{
   key: LayerKey;
   label: string;
   swatch: string;
 }> = [
-  { key: 'circle', label: 'Circles', swatch: '#3b82f6' },
-  { key: 'polygon', label: 'Polygons', swatch: '#22c55e' },
-  { key: 'point', label: 'Points', swatch: '#6b7280' },
-  { key: 'multipoint', label: 'Multipoints', swatch: '#ef4444' },
+  { key: 'circle', label: 'Circles', swatch: NOTAM_COLOR },
+  { key: 'polygon', label: 'Polygons', swatch: NOTAM_COLOR },
+  { key: 'point', label: 'Points', swatch: NOTAM_COLOR },
+  { key: 'multipoint', label: 'Multipoints', swatch: NOTAM_COLOR },
 ];
 
 const KML_META: Array<{
@@ -518,10 +528,19 @@ export default function MapView({
 
   const renderCircle = (notam: ParsedNotam) => {
     if (notam.geometry?.type !== 'circle') return null;
-    const color = getCategoryColor(notam.category);
     const isFocused = selectedNotam?.id === notam.id;
     const isMember = selectedIds.has(notam.id);
-    const weight = isMember ? 3 : isFocused ? 2.5 : 1;
+    const weight = isMember
+      ? NOTAM_WEIGHT_SELECTED
+      : isFocused
+        ? NOTAM_WEIGHT_FOCUSED
+        : NOTAM_WEIGHT;
+    const fillOpacity = isMember
+      ? NOTAM_FILL_OPACITY_SELECTED
+      : isFocused
+        ? NOTAM_FILL_OPACITY_FOCUSED
+        : NOTAM_FILL_OPACITY;
+    const strokeColor = isMember ? NOTAM_SELECTED_COLOR : NOTAM_COLOR;
     const { lat, lon, radiusNm } = notam.geometry;
 
     if (radiusNm >= FIR_SCALE_RADIUS_NM) {
@@ -531,10 +550,12 @@ export default function MapView({
           center={[lat, lon]}
           radius={isMember ? 8 : isFocused ? 7 : 5}
           pathOptions={{
-            color: isMember ? '#1d4ed8' : color,
-            fillColor: color,
-            fillOpacity: isMember ? 1 : isFocused ? 0.9 : 0.6,
+            color: strokeColor,
+            fillColor: NOTAM_COLOR,
+            fillOpacity,
+            opacity: NOTAM_STROKE_OPACITY,
             weight,
+            dashArray: isMember ? NOTAM_SELECTED_DASH : undefined,
           }}
           eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
           ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
@@ -556,12 +577,12 @@ export default function MapView({
         center={[lat, lon]}
         radius={radiusM}
         pathOptions={{
-          color: isMember ? '#1d4ed8' : color,
-          fillColor: color,
-          fillOpacity: isMember ? 0.3 : isFocused ? 0.25 : 0,
-          opacity: isMember ? 1 : isFocused ? 0.95 : 0.7,
+          color: strokeColor,
+          fillColor: NOTAM_COLOR,
+          fillOpacity,
+          opacity: NOTAM_STROKE_OPACITY,
           weight,
-          dashArray: isMember ? '6 4' : undefined,
+          dashArray: isMember ? NOTAM_SELECTED_DASH : undefined,
         }}
         eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
         ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
@@ -578,21 +599,30 @@ export default function MapView({
 
   const renderPolygon = (notam: ParsedNotam) => {
     if (notam.geometry?.type !== 'polygon') return null;
-    const color = getCategoryColor(notam.category);
     const isFocused = selectedNotam?.id === notam.id;
     const isMember = selectedIds.has(notam.id);
-    const weight = isMember ? 4 : isFocused ? 3 : 2;
+    const weight = isMember
+      ? NOTAM_WEIGHT_SELECTED
+      : isFocused
+        ? NOTAM_WEIGHT_FOCUSED
+        : NOTAM_WEIGHT;
+    const fillOpacity = isMember
+      ? NOTAM_FILL_OPACITY_SELECTED
+      : isFocused
+        ? NOTAM_FILL_OPACITY_FOCUSED
+        : NOTAM_FILL_OPACITY;
     const vertexCount = notam.geometry.vertices.length;
     return (
       <Polygon
         key={`pg-${notam.id}`}
         positions={notam.geometry.vertices}
         pathOptions={{
-          color: isMember ? '#1d4ed8' : color,
-          fillColor: color,
-          fillOpacity: isMember ? 0.4 : isFocused ? 0.35 : 0.15,
+          color: isMember ? NOTAM_SELECTED_COLOR : NOTAM_COLOR,
+          fillColor: NOTAM_COLOR,
+          fillOpacity,
+          opacity: NOTAM_STROKE_OPACITY,
           weight,
-          dashArray: isMember ? '6 4' : undefined,
+          dashArray: isMember ? NOTAM_SELECTED_DASH : undefined,
         }}
         eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
         ref={(instance) => registerRef(notam.id, instance as unknown as LeafletLayer | null)}
@@ -610,10 +640,18 @@ export default function MapView({
   const renderMultipoint = (notam: ParsedNotam) => {
     if (notam.geometry?.type !== 'multipoint') return null;
     const { points } = notam.geometry;
-    const color = getCategoryColor(notam.category);
     const isFocused = selectedNotam?.id === notam.id;
     const isMember = selectedIds.has(notam.id);
-    const weight = isMember ? 4 : isFocused ? 3 : 2;
+    const weight = isMember
+      ? NOTAM_WEIGHT_SELECTED
+      : isFocused
+        ? NOTAM_WEIGHT_FOCUSED
+        : NOTAM_WEIGHT;
+    const fillOpacity = isMember
+      ? NOTAM_FILL_OPACITY_SELECTED
+      : isFocused
+        ? NOTAM_FILL_OPACITY_FOCUSED
+        : NOTAM_FILL_OPACITY;
     return (
       <Fragment key={`mp-${notam.id}`}>
         {points.map((pt, idx) => (
@@ -622,10 +660,12 @@ export default function MapView({
             center={pt}
             radius={isMember ? 7 : 5}
             pathOptions={{
-              color: isMember ? '#1d4ed8' : color,
-              fillColor: color,
-              fillOpacity: isMember ? 1 : 0.7,
+              color: isMember ? NOTAM_SELECTED_COLOR : NOTAM_COLOR,
+              fillColor: NOTAM_COLOR,
+              fillOpacity,
+              opacity: NOTAM_STROKE_OPACITY,
               weight,
+              dashArray: isMember ? NOTAM_SELECTED_DASH : undefined,
             }}
             eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
             ref={
@@ -660,10 +700,10 @@ export default function MapView({
             center={[lat, lon]}
             radius={14}
             pathOptions={{
-              color: '#1d4ed8',
-              weight: 2.5,
+              color: NOTAM_SELECTED_COLOR,
+              weight: NOTAM_WEIGHT_FOCUSED,
               fill: false,
-              dashArray: '4 3',
+              dashArray: NOTAM_SELECTED_DASH,
             }}
             eventHandlers={{ click: (e) => handleShapeClick(notam, e) }}
           />

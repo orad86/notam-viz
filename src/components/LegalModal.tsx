@@ -137,7 +137,7 @@ export default function LegalModal({ title, body, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/40 backdrop-blur-sm px-3 py-4 md:py-8"
+      className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/40 backdrop-blur-sm px-3 py-4 md:py-8"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

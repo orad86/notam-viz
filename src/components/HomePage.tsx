@@ -7,6 +7,7 @@ import NotamList from '@/components/NotamList';
 import NotamFilterBar from '@/components/NotamFilterBar';
 import RouteInput from '@/components/RouteInput';
 import LegalModal from '@/components/LegalModal';
+import DisclaimerModal from '@/components/DisclaimerModal';
 import { useNotamFilter } from '@/lib/use-notam-filter';
 import {
   Route,
@@ -39,6 +40,7 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
   const [route, setRoute] = useState<Route | null>(null);
   const [routeIndex, setRouteIndex] = useState<RoutePointIndex>(EMPTY_INDEX);
   const [legalDoc, setLegalDoc] = useState<'terms' | 'privacy' | null>(null);
+  const [disclaimerOpen, setDisclaimerOpen] = useState(true);
 
   const filter = useNotamFilter(notams);
   const location = useDeviceLocation();
@@ -276,6 +278,13 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
             />
           )}
       </div>
+
+      {disclaimerOpen && (
+        <DisclaimerModal
+          onAccept={() => setDisclaimerOpen(false)}
+          onOpenLegal={setLegalDoc}
+        />
+      )}
 
       {legalDoc && (
         <LegalModal

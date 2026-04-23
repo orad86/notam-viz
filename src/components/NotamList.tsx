@@ -63,7 +63,7 @@ export default function NotamList({
       )}
 
       <aside
-        style={{ height: 'calc(100vh - 3rem)' }}
+        style={{ height: 'calc(100dvh - 3rem)' }}
         className={`bg-white border-r border-gray-200 flex flex-col
           fixed z-[9999] left-0 top-12
           w-[85%] max-w-sm md:w-80 md:max-w-none
@@ -164,7 +164,7 @@ export default function NotamList({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-500 flex items-center justify-between gap-2">
+        <div className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-500 flex items-center justify-between gap-2 safe-bottom">
           <span className="tabular-nums">v{APP_VERSION}</span>
           <span className="flex items-center gap-2">
             <button

@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.6.0](#shipped-in-v060)
 - [Shipped in v0.5.0](#shipped-in-v050)
 - [Shipped in v0.4.0](#shipped-in-v040)
 - [Fixed in v0.3.x](#fixed-in-v033)
@@ -10,6 +11,15 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.6.0
+
+UX pass: legal surface, unified map design, mobile chrome, airport database refresh.
+
+- **Startup disclaimer.** New [src/components/DisclaimerModal.tsx](../src/components/DisclaimerModal.tsx) — shown on every launch with a "not for operational use" notice, version footer, and inline Terms / Privacy buttons that open the existing `LegalModal` on top (z-index bumped to `z-[10030]` to stack above the disclaimer at `z-[10020]`). Wired into [src/components/HomePage.tsx](../src/components/HomePage.tsx); requires explicit Accept to dismiss — no localStorage gating, no backdrop-click / Escape dismissal.
+- **Unified NOTAM map styling.** All NOTAM shapes (FIR-scale circles, regular circles, polygons, multipoints, single-point selection ring) now share one color and one set of opacity / stroke-weight constants defined at the top of [src/components/MapView.tsx](../src/components/MapView.tsx) (`NOTAM_COLOR`, `NOTAM_FILL_OPACITY*`, `NOTAM_STROKE_OPACITY`, `NOTAM_WEIGHT*`, `NOTAM_SELECTED_DASH`). Category-based coloring dropped on the map — `getCategoryColor` is no longer imported in MapView (still used by the sidebar list dot). Layer-panel swatches updated to match. Selection state = darker stroke + dashed outline + bumped fill opacity, consistent across all shape types. Active palette: `NOTAM_COLOR` red `#dc2626`, selected `#991b1b`.
+- **iOS safe-area footer fix.** Sidebar `<aside>` in [src/components/NotamList.tsx](../src/components/NotamList.tsx) switched from `calc(100vh - 3rem)` → `calc(100dvh - 3rem)` (dynamic viewport unit tracks iOS browser chrome). New `.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }` utility in [src/app/globals.css](../src/app/globals.css) applied to the version + Terms/Privacy footer so it clears the home indicator on notched iPhones. Same utility used inside the disclaimer modal footer.
+- **Airport KML refresh.** [public/kml/airports.kml](../public/kml/airports.kml) — added LLER (Ramon, ~29.7233°N / 35.0114°E); removed LLOV, LLHB, LLNV, LLHS, LLEK, LLPL, LLRD, LLES. Run `npx cap sync ios` to copy the updated KML into the iOS bundle.
 
 ## Shipped in v0.5.2
 

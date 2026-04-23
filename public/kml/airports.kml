@@ -60,14 +60,6 @@
 		<name>Airports</name>
 		<visibility>0</visibility>
 		<Placemark>
-			<name>LLHB</name>
-			<visibility>0</visibility>
-			<styleUrl>#msn_icon61</styleUrl>
-			<Point>
-				<coordinates>34.656604,31.242614,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
 			<name>LLBG</name>
 			<visibility>0</visibility>
 			<styleUrl>#waypoint</styleUrl>
@@ -92,14 +84,6 @@
 			</Point>
 		</Placemark>
 		<Placemark>
-			<name>LLHS</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>34.722327,31.758165,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
 			<name>LLYO</name>
 			<visibility>0</visibility>
 			<styleUrl>#waypoint</styleUrl>
@@ -113,14 +97,6 @@
 			<styleUrl>#waypoint</styleUrl>
 			<Point>
 				<coordinates>35.387732,31.326253,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
-			<name>LLNV</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>35.019446,31.213235,0</coordinates>
 			</Point>
 		</Placemark>
 		<Placemark>
@@ -172,11 +148,11 @@
 			</Point>
 		</Placemark>
 		<Placemark>
-			<name>LLOV</name>
+			<name>LLER</name>
 			<visibility>0</visibility>
 			<styleUrl>#waypoint</styleUrl>
 			<Point>
-				<coordinates>34.935358,29.940943,0</coordinates>
+				<coordinates>35.011389,29.723333,0</coordinates>
 			</Point>
 		</Placemark>
 		<Placemark>
@@ -188,43 +164,11 @@
 			</Point>
 		</Placemark>
 		<Placemark>
-			<name>LLES</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>35.005892,32.440488,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
 			<name>LLAR</name>
 			<visibility>0</visibility>
 			<styleUrl>#waypoint</styleUrl>
 			<Point>
 				<coordinates>35.18983,31.229016,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
-			<name>LLPL</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>34.688795,31.898779,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
-			<name>LLRD</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>35.182994,32.66632,0</coordinates>
-			</Point>
-		</Placemark>
-		<Placemark>
-			<name>LLEK</name>
-			<visibility>0</visibility>
-			<styleUrl>#waypoint</styleUrl>
-			<Point>
-				<coordinates>34.817047,31.836783,0</coordinates>
 			</Point>
 		</Placemark>
 	</Folder>
