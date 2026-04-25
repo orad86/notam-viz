@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Circle, Marker, useMap } from 'react-leaflet';
 import type { DivIcon } from 'leaflet';
 import type { DeviceFix } from '@/hooks/useDeviceLocation';
@@ -54,7 +54,7 @@ export default function UserLocationLayer({
     centeredRef.current = true;
   }, [fix, followOnFirstFix, map]);
 
-  const icon = useMemo(() => buildIcon(fix?.heading ?? null), [fix?.heading]);
+  const icon = buildIcon(fix?.heading ?? null);
 
   if (!fix || !icon) return null;
 
