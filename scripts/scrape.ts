@@ -1,8 +1,8 @@
-import { scrapeMobileNotams } from '../src/lib/scraper-mobile';
+import { scrapeMobileNotams } from '../src/lib/server/scraper-mobile';
 import { parseNotamBlock } from '../src/lib/notam-parser';
-import { setLatestNotams } from '../src/lib/kv';
-import { IAA_LIST_URL } from '../src/lib/config';
-import { log } from '../src/lib/log';
+import { setLatestNotams } from '../src/lib/server/kv';
+import { IAA_LIST_URL } from '../src/lib/server/config';
+import { log } from '../src/lib/server/log';
 import type { NotamApiResponse } from '../src/types/notam';
 
 async function main() {
