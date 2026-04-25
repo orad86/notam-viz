@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { isListPageValid, isDetailPageValid } from './scraper-mobile';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const FIX = join(__dirname, '../../tests/fixtures/iaa');
+const FIX = join(__dirname, '../../../tests/fixtures/iaa');
 
 // The fixture is already padded to exceed LIST_MIN_CHARS (20000). Real IAA
 // pages are 150 KB+ due to ASP.NET viewstate; our fixture only keeps the

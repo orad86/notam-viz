@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLatestNotams } from '@/lib/kv';
+import { getLatestNotams } from '@/lib/server/kv';
 import {
   IAA_LIST_URL,
   CACHE_MAX_AGE_SECONDS,
   CACHE_STALE_SECONDS,
-} from '@/lib/config';
-import { log } from '@/lib/log';
-import { checkRateLimit, clientKeyFromRequest, maskIpForLog } from '@/lib/rate-limit';
+} from '@/lib/server/config';
+import { log } from '@/lib/server/log';
+import { checkRateLimit, clientKeyFromRequest, maskIpForLog } from '@/lib/server/rate-limit';
 import { NotamApiResponse } from '@/types/notam';
 
 export const runtime = 'nodejs';
