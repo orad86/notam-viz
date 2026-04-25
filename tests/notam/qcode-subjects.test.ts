@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCategoryFromQLine, getCategoryFromQCode } from './qcode-subjects';
+import { getCategoryFromQLine, getCategoryFromQCode } from '@/lib/notam/qcode-subjects';
 
 describe('getCategoryFromQCode', () => {
   it('maps facility codes to airport', () => {

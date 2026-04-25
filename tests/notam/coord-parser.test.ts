@@ -5,7 +5,7 @@ import {
   extractCoordinatesFromBody,
   dmsToDec,
   dmToDecimal,
-} from './coord-parser';
+} from '@/lib/notam/coord-parser';
 
 describe('dmsToDec / dmToDecimal', () => {
   it('converts DMS N/E correctly', () => {
