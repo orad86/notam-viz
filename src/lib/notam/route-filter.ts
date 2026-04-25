@@ -1,5 +1,5 @@
 import { ParsedNotam } from '@/types/notam';
-import { altitudeBandFt } from './altitude-parse';
+import { altitudeBandFt } from './altitude';
 
 export const ROUTE_BUFFER_KM = 1;
 // 1 NM = 1.852 km

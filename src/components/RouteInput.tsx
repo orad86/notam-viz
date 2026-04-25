@@ -7,8 +7,8 @@ import {
   RoutePointIndex,
   parseRouteInput,
   resolveRouteTokens,
-} from '@/lib/route-filter';
-import { parseAltitudeFt } from '@/lib/altitude-parse';
+} from '@/lib/notam/route-filter';
+import { parseAltitudeFt } from '@/lib/notam/altitude';
 import { useClickOutside } from '@/lib/use-click-outside';
 
 interface Props {

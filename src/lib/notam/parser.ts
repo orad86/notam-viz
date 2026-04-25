@@ -2,7 +2,7 @@ import { ParsedNotam, NotamCategory, NotamGeometry } from '@/types/notam';
 import { parseQLineCoordinate, extractCoordinatesFromBody } from './coord-parser';
 import { getCategoryFromQLine } from './qcode-subjects';
 import { decodeQCode, formatQCodeExplanation } from './qcode-decoder';
-import { getAirportCoords } from './airport-coords';
+import { getAirportCoords } from './airports';
 
 function extractItem(raw: string, letter: string): string {
   // Stop at the next field marker whether it's on a new line (desktop layout)

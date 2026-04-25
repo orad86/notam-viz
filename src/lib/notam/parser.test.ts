@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseNotamBlock, splitNotamBlocks } from './notam-parser';
+import { parseNotamBlock, splitNotamBlocks } from './parser';
 
 const MINIMAL_NOTAM = `A0001/26 NOTAMN
 Q) LLLL/QFALC/IV/NBO/A/000/999/3200N03450E005

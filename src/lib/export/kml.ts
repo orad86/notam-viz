@@ -1,5 +1,5 @@
 import { ParsedNotam, NotamCategory } from '@/types/notam';
-import { getCategoryColor } from '@/lib/notam-format';
+import { getCategoryColor } from '@/lib/notam/format';
 import { escapeXml, timestampSuffix, triggerDownload } from './download';
 
 const CATEGORIES: NotamCategory[] = [

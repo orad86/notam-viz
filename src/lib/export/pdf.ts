@@ -3,7 +3,7 @@ import {
   formatUtcDate,
   formatAltitudeRange,
   getCategoryColor,
-} from '@/lib/notam-format';
+} from '@/lib/notam/format';
 import { escapeHtml, triggerDownload, timestampSuffix } from './download';
 
 function eItemText(n: ParsedNotam): string {

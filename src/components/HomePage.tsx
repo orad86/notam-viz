@@ -14,7 +14,7 @@ import {
   RoutePointIndex,
   buildRoutePointIndex,
   notamMatchesRoute,
-} from '@/lib/route-filter';
+} from '@/lib/notam/route-filter';
 import { loadKmlPoints } from '@/lib/kml-layer';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 
