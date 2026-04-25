@@ -1,6 +1,6 @@
 # Scraping
 
-Deep dive on how notam-viz gets data past the IAA's Radware CloudWAF + Bot Manager. This is the most operationally load-bearing part of the app; understand it before changing anything in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts).
+Deep dive on how notam-viz gets data past the IAA's Radware CloudWAF + Bot Manager. This is the most operationally load-bearing part of the app; understand it before changing anything in [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts).
 
 ## Contents
 - [Why the mobile endpoint](#why-the-mobile-endpoint)
@@ -31,7 +31,7 @@ The mobile surface exposes the same backend as static HTML, so: one list fetch +
 
 ## Endpoints in use
 
-Defined at the top of [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts):
+Defined at the top of [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts):
 
 | Constant | URL |
 |---|---|
@@ -60,7 +60,7 @@ The jar can come from three sources, in precedence order:
 
 ### 1. `IAA_COOKIE_JAR` env var (preferred in practice)
 
-Parsed by `parseCookieHeader` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts). Value is the raw `Cookie:` header string (`name=value; name=value; …`) copied from DevTools. The env jar is used as the default starting point. If the WAF rejects it (list fetch or a worker), `getJar(true)` skips the env short-circuit and mints a fresh jar with Playwright — the env cookies aren't re-used after a rejection, since replaying them would just reproduce the failure.
+Parsed by `parseCookieHeader` in [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts). Value is the raw `Cookie:` header string (`name=value; name=value; …`) copied from DevTools. The env jar is used as the default starting point. If the WAF rejects it (list fetch or a worker), `getJar(true)` skips the env short-circuit and mints a fresh jar with Playwright — the env cookies aren't re-used after a rejection, since replaying them would just reproduce the failure.
 
 Why this is the preferred path: headless Chromium (even with `navigator.webdriver` hidden, `window.chrome = {runtime:{}}`, locale/timezone set to `Asia/Jerusalem`) frequently fails the stormcaster challenge on IPs that have made previous programmatic requests. Radware escalates per-IP risk based on historical behaviour. A cookie pasted from a passing-in-anger human browser carries the "human" signal and keeps working for its cookie lifetime.
 
@@ -145,7 +145,7 @@ Known symptoms and what they mean:
 - **`count: 0`, errors contain `Radware WAF challenge returned for https://…`.**
   The env jar is rejected AND the Playwright mint also failed to clear the challenge. Common causes: host IP flagged by Radware (try from a different network), Playwright UA / `sec-ch-ua` drift from the version you last pasted cookies from, or a true upstream outage. Re-extract cookies from a real browser as the first remediation (see [docs/OPERATIONS.md](OPERATIONS.md) §Cookie-jar refresh).
 - **`count: 0`, error is `List page parsed zero NOTAMs`.**
-  The mobile list DOM changed (likely `td.DivRecordID` / `tr[onclick^="rowClicked"]` selectors). Update [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) `parseList`.
+  The mobile list DOM changed (likely `td.DivRecordID` / `tr[onclick^="rowClicked"]` selectors). Update [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts) `parseList`.
 - **`count` is close to the expected ~114 but a handful of entries are in `errors[]` with `fetch failed`.**
   Transient network glitches. The worker retries once at 800 ms; anything that fails both attempts lands in `errors[]`. Safe to ignore unless persistent.
 - **Very large circles all over the map covering the basemap.**
@@ -153,7 +153,7 @@ Known symptoms and what they mean:
 
 ## Tuning constants
 
-All in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts):
+All in [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts):
 
 | Constant | Value | Purpose |
 |---|---|---|
