@@ -29,7 +29,7 @@ import {
   formatScope,
   formatTraffic,
   FIR_SCALE_RADIUS_NM,
-} from '@/lib/notam-format';
+} from '@/lib/notam/format';
 import KmlLayer from './KmlLayer';
 import SelectionToolbar from './SelectionToolbar';
 import UserLocationLayer from './UserLocationLayer';
@@ -39,7 +39,7 @@ import {
   buildCorridorPolygon,
   ROUTE_BUFFER_NM,
   ROUTE_BUFFER_KM,
-} from '@/lib/route-filter';
+} from '@/lib/notam/route-filter';
 import { getAviationIconSvg, type IconType } from '@/lib/aviation-icons';
 import 'leaflet/dist/leaflet.css';
 

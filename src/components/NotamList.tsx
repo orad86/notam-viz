@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ParsedNotam } from '@/types/notam';
-import { getCategoryColor } from '@/lib/notam-format';
+import { getCategoryColor } from '@/lib/notam/format';
 import { APP_VERSION } from '@/lib/version';
 
 interface NotamListProps {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NotamCategory, ParsedNotam } from '@/types/notam';
 import { SortBy } from '@/lib/use-notam-filter';
-import { TimeWindow } from '@/lib/route-filter';
+import { TimeWindow } from '@/lib/notam/route-filter';
 import { useClickOutside } from '@/lib/use-click-outside';
 import ExportMenu from './ExportMenu';
 
