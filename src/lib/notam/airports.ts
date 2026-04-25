@@ -30,8 +30,3 @@ export function getAirportCoords(
   const cleaned = fir.toUpperCase().trim();
   return AIRPORT_COORDINATES[cleaned] || null;
 }
-
-export function getDefaultCoordForFIR(fir: string): { lat: number; lon: number } | null {
-  const coords = getAirportCoords(fir);
-  return coords ? { lat: coords.lat, lon: coords.lon } : null;
-}
