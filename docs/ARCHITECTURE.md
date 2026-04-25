@@ -2,6 +2,8 @@
 
 System architecture, module responsibilities, and end-to-end data flow for notam-viz.
 
+For the high-level orientation map (where do new files go?), see [STRUCTURE.md](STRUCTURE.md). This document is the deeper dive: lifecycles, responsibilities, and per-module notes.
+
 ## Contents
 - [Project overview](#project-overview)
 - [High-level architecture](#high-level-architecture)
@@ -29,16 +31,16 @@ System architecture, module responsibilities, and end-to-end data flow for notam
  ┌──────────────────────────── daily cron ────────────────────────────┐
  │                                                                     │
  │   GitHub Actions ── scripts/scrape.ts ── scrapeMobileNotams()      │
- │                              │              (src/lib/scraper-mobile)│
+ │                              │       (src/lib/server/scraper-mobile)│
  │                              │                                      │
  │                              ▼                                      │
  │                 maiNotam.aspx (list)  +  pool(4) × maiDetails.aspx  │
  │                              │                                      │
  │                              ▼                                      │
- │                   parseNotamBlock (src/lib/notam-parser.ts)         │
+ │                  parseNotamBlock (src/lib/notam/parser.ts)          │
  │                              │                                      │
  │                              ▼                                      │
- │                     setLatestNotams (src/lib/kv.ts)                 │
+ │                  setLatestNotams (src/lib/server/kv.ts)             │
  │                              │                                      │
  │                              ▼                                      │
  │                 Vercel KV  {  notams:latest  }                      │
@@ -50,7 +52,7 @@ System architecture, module responsibilities, and end-to-end data flow for notam
                    /api/notams (src/app/api/notams/route.ts)
                                 │
                                 ▼
-                      getLatestNotams (src/lib/kv.ts)
+                   getLatestNotams (src/lib/server/kv.ts)
                                 │
                                 ▼
                           Vercel KV (Upstash)
@@ -77,14 +79,14 @@ Two separate flows.
 ### A) Daily scrape (GitHub Actions → KV)
 
 1. `.github/workflows/scrape.yml` fires on cron (or manual dispatch) and runs `npx tsx scripts/scrape.ts` with `IAA_COOKIE_JAR`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` injected as secrets.
-2. `scrapeMobileNotams()` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) minting precedence:
+2. `scrapeMobileNotams()` in [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts) minting precedence:
    - If `process.env.IAA_COOKIE_JAR` is set, use it unchanged (no Playwright) for the initial attempt.
    - Else reuse the module-scoped `cachedJar` if younger than `JAR_TTL_MS` (15 min).
    - Else mint a fresh jar via headless Chromium (welcome → list → one detail page, both pages gated by `isListPageValid` / `isDetailPageValid` with up to 3× reload past an Error 100 challenge). On a WAF rejection of the env jar, `getJar(true)` bypasses the env short-circuit and falls through to a fresh Playwright mint — reusing env cookies that just got rejected would only reproduce the failure.
 3. `fetchList(jar)` hits `GET /MobileAeroinfo/maiNotam.aspx`. `isListPageValid` requires `tr[onclick="rowClicked(...)"]` rows; the only negative signals are `<title>Error 100</title>` and body < `LIST_MIN_CHARS` = 20 000 (the `stormcaster.js` probe was a third marker through 0.4.0, dropped in 0.4.1 once Radware started embedding it on authenticated responses too). Rejection throws `WafChallengeError`; the caller refreshes the jar once and retries.
 4. `parseList` emits `{ rowID, notamId, location }[]` (~100-120 entries).
 5. `runPool(entries, worker, CONCURRENCY=4)` fans out detail fetches; each worker waits `jitter()` (200–500 ms), retries once on transient failure, re-mints jar once per scrape on WAF.
-6. `parseNotamBlock` ([src/lib/notam-parser.ts](../src/lib/notam-parser.ts)) turns each raw block into `ParsedNotam`:
+6. `parseNotamBlock` ([src/lib/notam/parser.ts](../src/lib/notam/parser.ts)) turns each raw block into `ParsedNotam`:
    - Q-line → fir / qCode / significance / priority / scope / lowerLimit / upperLimit / coord.
    - `extractItem` regex isolates A–G fields (stops at next field marker — works for the mobile one-line layout).
    - `extractCoordinatesFromBody` + `parseQLineCoordinate` + `getAirportCoords` fallback produce the `NotamGeometry`.
@@ -95,7 +97,7 @@ Two separate flows.
 ### B) Browser request (KV → UI)
 
 1. Browser loads `/`. The server component at `src/app/page.tsx` reads `TERMS.md` and `PRIVACY.md` from the repo root and renders the client `HomePage`, which `fetch('/api/notams')` on effect.
-2. [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) calls `getLatestNotams()` from [src/lib/kv.ts](../src/lib/kv.ts) — a single GET against `{KV_REST_API_URL}/get/notams:latest` with `Authorization: Bearer {KV_REST_API_TOKEN}`.
+2. [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) calls `getLatestNotams()` from [src/lib/server/kv.ts](../src/lib/server/kv.ts) — a single GET against `{KV_REST_API_URL}/get/notams:latest` with `Authorization: Bearer {KV_REST_API_TOKEN}`.
 3. On hit → responds 200 with `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. On miss (empty KV) → 503 `{ errors: ['No cached NOTAMs in KV yet — run the scrape workflow'] }`. On throw → 500 with the error message.
 4. Page stores the parsed list in React state and renders.
 
@@ -107,34 +109,55 @@ Next.js App Router. Client entry point plus the one API route.
 
 - [src/app/layout.tsx](../src/app/layout.tsx) — root layout, Inter font, `<title>NOTAM Visualizer</title>`.
 - [src/app/page.tsx](../src/app/page.tsx) — server component. Reads `TERMS.md` and `PRIVACY.md` from the repo root and passes them to the client `HomePage` so the in-app legal modal has content without a separate route or markdown runtime dep.
-- [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'` (dynamic — reads headers for rate-limiting). Reads KV via `getLatestNotams()`; rate-limits via `checkRateLimit` from [src/lib/rate-limit.ts](../src/lib/rate-limit.ts); emits structured logs via [src/lib/log.ts](../src/lib/log.ts).
+- [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'` (dynamic — reads headers for rate-limiting). Reads KV via `getLatestNotams()`; rate-limits via `checkRateLimit` from [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts); emits structured logs via [src/lib/server/log.ts](../src/lib/server/log.ts).
 - [src/app/globals.css](../src/app/globals.css) — Tailwind base + Leaflet/divIcon/aviation-label overrides.
 
-### `src/lib/`
+### `src/lib/notam/`
 
-Pure-TS library code (no React, no DOM unless marked `'use client'`).
+NOTAM-domain logic. Pure TypeScript, no React, no DOM, no Node-specific APIs.
 
-- [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) — scraping module. See [docs/SCRAPING.md](SCRAPING.md). Constants: `CONCURRENCY=4`, `JITTER_MS=200..500`, `DETAIL_MIN_CHARS=4000`, `LIST_MIN_CHARS=20000`, `JAR_TTL_MS=15 min`. Exports `isListPageValid` / `isDetailPageValid` for positive-signal WAF detection.
-- [src/lib/notam-parser.ts](../src/lib/notam-parser.ts) — `parseNotamBlock`, `splitNotamBlocks`, `determineCategory`.
-- [src/lib/coord-parser.ts](../src/lib/coord-parser.ts) — `dmsToDec`, `dmToDecimal`, `parseCoordinatePair`, `parseQLineCoordinate`, `extractCoordinatesFromBody`.
-- [src/lib/qcode-decoder.ts](../src/lib/qcode-decoder.ts) — ICAO Q-code tables (`SUBJECT_CODES`, `CONDITION_CODES`), `decodeQCode`, `formatQCodeExplanation`.
-- [src/lib/qcode-subjects.ts](../src/lib/qcode-subjects.ts) — Q-code subject → `NotamCategory` map.
-- [src/lib/airport-coords.ts](../src/lib/airport-coords.ts) — hard-coded ICAO aerodrome/FIR lookup (Israel).
-- [src/lib/notam-format.ts](../src/lib/notam-format.ts) — display helpers: `formatUtcDate`, `formatAltitudeRange`, `formatScope`, `formatTraffic`, `getCategoryColor`, `FIR_SCALE_RADIUS_NM`.
-- [src/lib/geometry.ts](../src/lib/geometry.ts) — bounding boxes + intersection tests (`notamBbox`, `notamIntersectsBounds`).
-- [src/lib/altitude-parse.ts](../src/lib/altitude-parse.ts) — `parseAltitudeFt` for user input (`FL080`, `5500ft`, `SFC`, `UNL`) + `parseQLineAltitudeFt` for ICAO Q-line 3-digit codes (`005` → 500 ft, `999` → Infinity).
-- [src/lib/route-filter.ts](../src/lib/route-filter.ts) — route planning: `RoutePoint`, `Route`, `TimeWindow`, `buildRoutePointIndex`, `resolveRouteTokens`, `parseRouteInput`, `haversineNm`, `pointToRouteDistanceNm`, `notamOverlapsWindow`, `notamMatchesRoute`, `buildCorridorPolygon`. `ROUTE_BUFFER_KM = 1`.
-- [src/lib/use-notam-filter.ts](../src/lib/use-notam-filter.ts) — React hook wrapping search / category / active-only / time-window / sort state.
-- [src/lib/kml-layer.ts](../src/lib/kml-layer.ts) — tiny KML point-placemark parser (`parseKmlPoints`) + cached URL loader (`loadKmlPoints`).
+- [src/lib/notam/parser.ts](../src/lib/notam/parser.ts) — `parseNotamBlock`, `splitNotamBlocks`, `determineCategory`.
+- [src/lib/notam/coord-parser.ts](../src/lib/notam/coord-parser.ts) — `dmsToDec`, `dmToDecimal`, `parseCoordinatePair`, `parseQLineCoordinate`, `extractCoordinatesFromBody`.
+- [src/lib/notam/qcodes.ts](../src/lib/notam/qcodes.ts) — single owner of ICAO Q-code reference data and decoding. Three module-private tables (`SUBJECT_CATEGORIES`, `SUBJECT_DESCRIPTIONS`, `CONDITION_DESCRIPTIONS`) plus `getCategoryFromQCode`, `getCategoryFromQLine`, `decodeQCode`, `formatQCodeExplanation`, and the `QCodeParts` type.
+- [src/lib/notam/airports.ts](../src/lib/notam/airports.ts) — hard-coded ICAO aerodrome/FIR lookup (Israel). `AIRPORT_COORDINATES` map plus `getAirportCoords`.
+- [src/lib/notam/format.ts](../src/lib/notam/format.ts) — display helpers: `formatUtcDate`, `eItemText`, `formatAltitudeRange`, `formatScope`, `formatTraffic`, `getCategoryColor`, `FIR_SCALE_RADIUS_NM`.
+- [src/lib/notam/geometry.ts](../src/lib/notam/geometry.ts) — pure NOTAM-geometry math. Currently `bboxArea(n)`, used by MapView to sort polygons largest-first so big areas render under smaller ones.
+- [src/lib/notam/altitude.ts](../src/lib/notam/altitude.ts) — `parseAltitudeFt` for user input (`FL080`, `5500ft`, `SFC`, `UNL`) + `parseQLineAltitudeFt` for ICAO Q-line 3-digit codes (`005` → 500 ft, `999` → Infinity) + `altitudeBandFt`.
+- [src/lib/notam/route-filter.ts](../src/lib/notam/route-filter.ts) — route planning: `RoutePoint`, `Route`, `TimeWindow`, `buildRoutePointIndex`, `resolveRouteTokens`, `parseRouteInput`, `haversineNm`, `pointToRouteDistanceNm`, `notamOverlapsWindow`, `notamMatchesRoute`, `buildCorridorPolygon`. `ROUTE_BUFFER_KM = 1`.
+
+### `src/lib/server/`
+
+Server-only modules. Run on Node, read env vars, talk to KV / Upstash / Playwright. Never imported by a client component.
+
+- [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts) — scraping module. See [docs/SCRAPING.md](SCRAPING.md). Constants: `CONCURRENCY=4`, `JITTER_MS=200..500`, `DETAIL_MIN_CHARS=4000`, `LIST_MIN_CHARS=20000`, `JAR_TTL_MS=15 min`. Exports `isListPageValid` / `isDetailPageValid` for positive-signal WAF detection.
+- [src/lib/server/kv.ts](../src/lib/server/kv.ts) — thin Upstash REST client: `getLatestNotams`, `setLatestNotams`.
+- [src/lib/server/config.ts](../src/lib/server/config.ts) — single source of truth for upstream URLs (`IAA_BASE`, `IAA_LIST_URL`, `iaaDetailUrl`), the KV key (`KV_LATEST_KEY`), and cache windows (`CACHE_MAX_AGE_SECONDS`, `CACHE_STALE_SECONDS`). Imported by the scraper, the API route, and `scripts/scrape.ts`.
+- [src/lib/server/log.ts](../src/lib/server/log.ts) — structured JSON-line logger. `log(level, event, fields)` emits one record per call to stdout (info/debug) or stderr (warn/error). `timer(event)` returns a closure that logs duration on invocation.
+- [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts) — `@upstash/ratelimit` sliding window (30/min per IP), fail-open on backend unavailability. `clientKeyFromRequest` derives the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
+
+### `src/lib/export/`
+
+File-format builders for the export menu (PDF / KML / GPX).
+
+- [src/lib/export/pdf.ts](../src/lib/export/pdf.ts) — print-dialog HTML.
+- [src/lib/export/kml.ts](../src/lib/export/kml.ts) — Google-Earth placemarks.
+- [src/lib/export/gpx.ts](../src/lib/export/gpx.ts) — GPS waypoints/tracks.
+- [src/lib/export/download.ts](../src/lib/export/download.ts) — Blob trigger + XML/HTML escaping + timestamp suffix.
+
+### `src/lib/` (top-level, no domain home)
+
+- [src/lib/kml-layer.ts](../src/lib/kml-layer.ts) — tiny KML point-placemark parser (`parseKmlPoints`) + cached URL loader (`loadKmlPoints`). Browser-side, used by `KmlLayer` and `HomePage`.
 - [src/lib/aviation-icons.ts](../src/lib/aviation-icons.ts) — inline SVG symbols (airport / VOR / VFR / IFR) + `getAviationIcon` (Leaflet `divIcon`) + `getAviationIconSvg` (raw HTML for the legend).
-- [src/lib/kv.ts](../src/lib/kv.ts) — thin Upstash REST client: `getLatestNotams`, `setLatestNotams`.
-- [src/lib/config.ts](../src/lib/config.ts) — single source of truth for upstream URLs (`IAA_BASE`, `IAA_LIST_URL`, `iaaDetailUrl`), the KV key (`KV_LATEST_KEY`), and cache windows (`CACHE_MAX_AGE_SECONDS`, `CACHE_STALE_SECONDS`). Imported by the scraper, the API route, and `scripts/scrape.ts`.
-- [src/lib/log.ts](../src/lib/log.ts) — structured JSON-line logger. `log(level, event, fields)` emits one record per call to stdout (info/debug) or stderr (warn/error). `timer(event)` returns a closure that logs duration on invocation.
-- [src/lib/rate-limit.ts](../src/lib/rate-limit.ts) — `@upstash/ratelimit` sliding window (30/min per IP), fail-open on backend unavailability. `clientKeyFromRequest` derives the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
-- [src/lib/use-click-outside.ts](../src/lib/use-click-outside.ts) — React hook shared by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete.
-- [src/lib/version.ts](../src/lib/version.ts) — re-exports `version` from `package.json` as `APP_VERSION`. Rendered in the sidebar footer next to the Terms / Privacy buttons.
-- [src/lib/export/](../src/lib/export/) — `pdf.ts` (print-dialog HTML), `gpx.ts` (waypoints/tracks), `kml.ts` (placemarks), `download.ts` (Blob trigger + XML/HTML escaping + timestamp suffix).
 - [src/lib/render-markdown.tsx](../src/lib/render-markdown.tsx) — minimal markdown → React renderer (headings, paragraphs, lists, bold, code, links, hr). Shared by `LegalModal` (in-app) and the public docs pages so the markdown styling stays in one place.
+- [src/lib/version.ts](../src/lib/version.ts) — re-exports `version` from `package.json` as `APP_VERSION`. Rendered in the sidebar footer next to the Terms / Privacy buttons.
+
+### `src/hooks/`
+
+Custom React hooks. `useThing.ts` (camelCase) per project convention.
+
+- [src/hooks/useDeviceLocation.ts](../src/hooks/useDeviceLocation.ts) — geolocation hook. Returns lat/lon, status, accuracy, and a `start()` / `stop()` pair driven by the browser Geolocation API.
+- [src/hooks/useNotamFilter.ts](../src/hooks/useNotamFilter.ts) — wraps search / category / active-only / time-window / sort state for the filter bar.
+- [src/hooks/useClickOutside.ts](../src/hooks/useClickOutside.ts) — close-on-mousedown-outside helper. Used by `ExportMenu`, `NotamFilterBar` (sort + time popovers), and `RouteInput` autocomplete.
 
 ### `src/app/` route pages
 
@@ -179,8 +202,11 @@ All `'use client'`.
 
 ### Tests
 
-- `src/lib/*.test.ts` — Vitest suite co-located with the source. Covers `notam-parser`, `coord-parser`, `qcode-subjects`, `route-filter`, and the scraper's positive-signal WAF validators. See [docs/TESTING.md](TESTING.md).
+- [tests/notam/](../tests/notam/) — Vitest unit tests for each NOTAM-domain module: `parser`, `coord-parser`, `qcodes`, `altitude`, `format`, `geometry`, `route-filter`. Mirror `src/lib/notam/`.
+- [tests/server/](../tests/server/) — Vitest tests for server-only modules. Currently the scraper's positive-signal WAF validators (`scraper-mobile.test.ts`).
 - [tests/fixtures/iaa/](../tests/fixtures/iaa/) — captured HTML shapes used by the scraper validator tests.
+
+See [docs/TESTING.md](TESTING.md) for the coverage matrix and conventions.
 
 ## Frontend rendering pipeline
 
