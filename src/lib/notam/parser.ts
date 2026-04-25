@@ -1,7 +1,6 @@
 import { ParsedNotam, NotamCategory, NotamGeometry } from '@/types/notam';
 import { parseQLineCoordinate, extractCoordinatesFromBody } from './coord-parser';
-import { getCategoryFromQLine } from './qcode-subjects';
-import { decodeQCode, formatQCodeExplanation } from './qcode-decoder';
+import { getCategoryFromQLine, decodeQCode, formatQCodeExplanation } from './qcodes';
 import { getAirportCoords } from './airports';
 
 function extractItem(raw: string, letter: string): string {
