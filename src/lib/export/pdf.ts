@@ -3,12 +3,9 @@ import {
   formatUtcDate,
   formatAltitudeRange,
   getCategoryColor,
+  eItemText,
 } from '@/lib/notam/format';
 import { escapeHtml, triggerDownload, timestampSuffix } from './download';
-
-function eItemText(n: ParsedNotam): string {
-  return (n.eItem || '').replace(/^E\)\s*/, '').replace(/E\)\s*/g, '').trim();
-}
 
 function buildCard(n: ParsedNotam, idx: number, total: number): string {
   const color = getCategoryColor(n.category);

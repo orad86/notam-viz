@@ -1,13 +1,6 @@
 import { ParsedNotam } from '@/types/notam';
+import { eItemText } from '@/lib/notam/format';
 import { escapeXml, timestampSuffix, triggerDownload } from './download';
-
-function eItemOneLine(n: ParsedNotam): string {
-  return (n.eItem || '')
-    .replace(/^E\)\s*/, '')
-    .replace(/E\)\s*/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function wpt(
   lat: number,
@@ -29,7 +22,7 @@ function wpt(
 function buildEntry(n: ParsedNotam): string {
   const g = n.geometry;
   if (!g) return '';
-  const desc = eItemOneLine(n);
+  const desc = eItemText(n).replace(/\s+/g, ' ');
 
   if (g.type === 'point') {
     return wpt(g.lat, g.lon, n.notamId, desc);

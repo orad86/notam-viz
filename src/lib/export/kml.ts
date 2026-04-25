@@ -1,5 +1,5 @@
 import { ParsedNotam, NotamCategory } from '@/types/notam';
-import { getCategoryColor } from '@/lib/notam/format';
+import { getCategoryColor, eItemText } from '@/lib/notam/format';
 import { escapeXml, timestampSuffix, triggerDownload } from './download';
 
 const CATEGORIES: NotamCategory[] = [
@@ -66,10 +66,6 @@ function circleToPolygon(
     pts.push([lat + dLat * Math.cos(theta), lon + dLon * Math.sin(theta)]);
   }
   return pts;
-}
-
-function eItemText(n: ParsedNotam): string {
-  return (n.eItem || '').replace(/^E\)\s*/, '').replace(/E\)\s*/g, '').trim();
 }
 
 function timeSpan(n: ParsedNotam): string {
