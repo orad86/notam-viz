@@ -5,7 +5,7 @@ import { ParsedNotam } from '@/types/notam';
 import { exportPdf } from '@/lib/export/pdf';
 import { downloadGpx } from '@/lib/export/gpx';
 import { downloadKml } from '@/lib/export/kml';
-import { useClickOutside } from '@/lib/use-click-outside';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 interface Props {
   notams: ParsedNotam[];
