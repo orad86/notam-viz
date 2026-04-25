@@ -9,7 +9,7 @@ import {
   resolveRouteTokens,
 } from '@/lib/notam/route-filter';
 import { parseAltitudeFt } from '@/lib/notam/altitude';
-import { useClickOutside } from '@/lib/use-click-outside';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 interface Props {
   index: RoutePointIndex;
