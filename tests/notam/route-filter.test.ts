@@ -6,7 +6,7 @@ import {
   notamOverlapsWindow,
   parseRouteInput,
   ROUTE_BUFFER_NM,
-} from './route-filter';
+} from '@/lib/notam/route-filter';
 import type { ParsedNotam } from '@/types/notam';
 
 // Utility to build a minimal ParsedNotam for tests.

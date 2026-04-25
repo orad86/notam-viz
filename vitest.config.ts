@@ -8,14 +8,13 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts'],
     environment: 'node',
     reporters: 'default',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['src/lib/**/*.ts'],
-      exclude: ['src/lib/**/*.test.ts'],
     },
   },
 });
