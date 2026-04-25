@@ -61,6 +61,7 @@ gh workflow run "Daily Scrape"
 
 ## Documentation
 
+- [docs/STRUCTURE.md](docs/STRUCTURE.md) — project layout, conventions, where new files belong.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system overview, modules, data flow (scraper → KV → API → UI).
 - [docs/SCRAPING.md](docs/SCRAPING.md) — IAA mobile endpoint, Radware WAF bypass, cookie jar, retry strategy.
 - [docs/REFERENCE.md](docs/REFERENCE.md) — `ParsedNotam` shape, geometry union, Q-code decoder tables, `GET /api/notams` contract.
@@ -88,4 +89,4 @@ gh workflow run "Daily Scrape"
 
 ## Source of truth
 
-Upstream: `https://brin.iaa.gov.il/MobileAeroinfo/maiNotam.aspx`. The scraper is the only consumer of this endpoint; the app reads its own KV snapshot. If the mobile DOM structure changes, the selectors in [src/lib/scraper-mobile.ts](src/lib/scraper-mobile.ts) need updating.
+Upstream: `https://brin.iaa.gov.il/MobileAeroinfo/maiNotam.aspx`. The scraper is the only consumer of this endpoint; the app reads its own KV snapshot. If the mobile DOM structure changes, the selectors in [src/lib/server/scraper-mobile.ts](src/lib/server/scraper-mobile.ts) need updating.
