@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Route,
   RoutePoint,
@@ -39,20 +39,16 @@ export default function RouteInput({ index, route, setRoute }: Props) {
 
   useClickOutside(wrapRef, suggestOpen, () => setSuggestOpen(false));
 
-  const tokens = useMemo(() => parseRouteInput(input), [input]);
-  const parsed = useMemo(() => resolveRouteTokens(tokens, index), [tokens, index]);
+  const tokens = parseRouteInput(input);
+  const parsed = resolveRouteTokens(tokens, index);
 
-  const suggestions = useMemo(() => {
+  const suggestions: RoutePoint[] = (() => {
     const q = caretToken.trim().toUpperCase();
-    if (q.length < 1) return [] as RoutePoint[];
-    const match = index.all
-      .filter((p) => p.code.startsWith(q))
-      .slice(0, 12);
+    if (q.length < 1) return [];
+    const match = index.all.filter((p) => p.code.startsWith(q)).slice(0, 12);
     if (match.length) return match;
-    return index.all
-      .filter((p) => p.code.includes(q))
-      .slice(0, 12);
-  }, [caretToken, index]);
+    return index.all.filter((p) => p.code.includes(q)).slice(0, 12);
+  })();
 
   const handleInput = (v: string) => {
     setInput(v);
