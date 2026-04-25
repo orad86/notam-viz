@@ -55,7 +55,7 @@ No feature-flag system. No per-environment YAML. All behaviour is in code.
 [.github/workflows/scrape.yml](../.github/workflows/scrape.yml) runs `scripts/scrape.ts` on a daily cron. The script:
 
 1. Calls `scrapeMobileNotams()` → `{ rawBlocks, fetchedAt, listed, failed }`.
-2. Runs each raw block through `parseNotamBlock` ([src/lib/notam-parser.ts](../src/lib/notam-parser.ts)).
+2. Runs each raw block through `parseNotamBlock` ([src/lib/notam/parser.ts](../src/lib/notam/parser.ts)).
 3. If zero NOTAMs parsed but the list had entries, **aborts without writing** — preserves the previous KV snapshot.
 4. Calls `setLatestNotams(payload)` → `POST /set/notams:latest` on Upstash.
 5. Logs `Scraped N/M NOTAMs in <iso>. Errors: K.` and exits 0.
@@ -81,7 +81,7 @@ npx tsx scripts/scrape.ts
 
 ### Logging
 
-Structured JSON lines via [src/lib/log.ts](../src/lib/log.ts). One record per event; `stdout` for info, `stderr` for warn/error. Vercel and GitHub Actions both surface these inline in their respective log views — no log aggregator required for basic operations.
+Structured JSON lines via [src/lib/server/log.ts](../src/lib/server/log.ts). One record per event; `stdout` for info, `stderr` for warn/error. Vercel and GitHub Actions both surface these inline in their respective log views — no log aggregator required for basic operations.
 
 | Event | Fields | Where | Meaning |
 |---|---|---|---|
@@ -110,9 +110,9 @@ Cache-Control: no-store
 {"notams":[],"count":0,"errors":["Rate limit exceeded. Retry in 42s."],…}
 ```
 
-**Fail-open semantics.** If the Upstash backend is unreachable, the limiter throws, [src/lib/rate-limit.ts](../src/lib/rate-limit.ts) catches, logs `ratelimit.unavailable`, and allows the request. Rationale: a temporarily-unreachable limiter is a worse outcome than a permissive one for a public NOTAM feed.
+**Fail-open semantics.** If the Upstash backend is unreachable, the limiter throws, [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts) catches, logs `ratelimit.unavailable`, and allows the request. Rationale: a temporarily-unreachable limiter is a worse outcome than a permissive one for a public NOTAM feed.
 
-Tuning the limit: edit `LIMIT` and `WINDOW` constants at the top of `src/lib/rate-limit.ts`. No env knob — changing these is a deliberate code change that should go through review.
+Tuning the limit: edit `LIMIT` and `WINDOW` constants at the top of `src/lib/server/rate-limit.ts`. No env knob — changing these is a deliberate code change that should go through review.
 
 ## CI
 
@@ -159,7 +159,7 @@ Click any NOTAM row. The detail page should render with `Q) … A) … B) … C)
 
 ### 4. Check UA alignment
 
-In the same Request Headers panel find `User-Agent:` — confirm it matches `USER_AGENT` in [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts). If Chrome has rolled forward, update `USER_AGENT` **and** the `sec-ch-ua` value in `BROWSER_HEADERS` before committing. Fingerprint mismatches can trigger re-challenge.
+In the same Request Headers panel find `User-Agent:` — confirm it matches `USER_AGENT` in [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts). If Chrome has rolled forward, update `USER_AGENT` **and** the `sec-ch-ua` value in `BROWSER_HEADERS` before committing. Fingerprint mismatches can trigger re-challenge.
 
 ### 5. Paste into the right place
 
