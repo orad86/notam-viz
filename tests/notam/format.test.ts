@@ -37,10 +37,9 @@ describe('formatUtcDate', () => {
     expect(formatUtcDate('2026-09-09T09:09:00Z')).toBe('2026-09-09 0909Z');
   });
 
-  // Behavior on an unparseable string is currently broken (returns
-  // 'NaN-NaN-NaN NaNNaNZ' instead of the input — `new Date(bad)` returns
-  // Invalid Date, doesn't throw, so the catch is dead). Tracked separately;
-  // not pinned here so this PR doesn't lock in the bad behavior.
+  it('returns the input unchanged when it cannot be parsed', () => {
+    expect(formatUtcDate('not-a-date')).toBe('not-a-date');
+  });
 });
 
 describe('eItemText', () => {
