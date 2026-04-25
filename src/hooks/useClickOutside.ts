@@ -4,8 +4,8 @@ import { RefObject, useEffect } from 'react';
 // referenced by `ref`. Common pattern for closing popovers / menus / dropdowns.
 // Pass `active` to gate the listener (useful when the popover is only mounted
 // while open — avoids attaching/detaching through an effect branch).
-export function useClickOutside<T extends HTMLElement>(
-  ref: RefObject<T>,
+export function useClickOutside(
+  ref: RefObject<HTMLElement>,
   active: boolean,
   onOutside: () => void,
 ): void {
