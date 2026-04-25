@@ -19,6 +19,14 @@ function trimTrailingParen(s: string | undefined): string {
   return s.replace(/\)\s*$/, '').trim();
 }
 
+// Cleans the raw E-item body for display/export: strips the leading `E)`
+// marker (and any inline `E)` markers, defensively), then trims edges.
+// Whitespace inside the body is preserved — callers wanting a single-line
+// form should follow up with `.replace(/\s+/g, ' ')`.
+export function eItemText(n: ParsedNotam): string {
+  return (n.eItem ?? '').replace(/^E\)\s*/, '').replace(/E\)\s*/g, '').trim();
+}
+
 export function formatAltitudeRange(n: ParsedNotam): string | null {
   const f = trimTrailingParen(n.fLine);
   const g = trimTrailingParen(n.gLine);
