@@ -8,7 +8,7 @@ import NotamFilterBar from '@/components/NotamFilterBar';
 import RouteInput from '@/components/RouteInput';
 import LegalModal from '@/components/LegalModal';
 import DisclaimerModal from '@/components/DisclaimerModal';
-import { useNotamFilter } from '@/lib/use-notam-filter';
+import { useNotamFilter } from '@/hooks/useNotamFilter';
 import {
   Route,
   RoutePointIndex,
