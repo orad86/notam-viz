@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { ParsedNotam, NotamCategory } from '@/types/notam';
-import { TimeWindow, notamOverlapsWindow } from './notam/route-filter';
+import { TimeWindow, notamOverlapsWindow } from '@/lib/notam/route-filter';
 
 export type SortBy = 'newest' | 'expiry' | 'id';
 
