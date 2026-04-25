@@ -41,6 +41,7 @@ import {
   ROUTE_BUFFER_KM,
 } from '@/lib/notam/route-filter';
 import { getAviationIconSvg, type IconType } from '@/lib/aviation-icons';
+import { bboxArea } from '@/lib/notam/geometry';
 import 'leaflet/dist/leaflet.css';
 
 type LayerKey = 'circle' | 'polygon' | 'point' | 'multipoint';
@@ -168,23 +169,6 @@ function NotamPopup({ notam, isMember, onToggleSelect, extra }: NotamPopupProps)
       </div>
     </div>
   );
-}
-
-function bboxArea(n: ParsedNotam): number {
-  if (n.geometry?.type !== 'polygon') return 0;
-  const verts = n.geometry.vertices;
-  if (verts.length < 2) return 0;
-  let latMin = Infinity,
-    latMax = -Infinity,
-    lonMin = Infinity,
-    lonMax = -Infinity;
-  for (const [lat, lon] of verts) {
-    if (lat < latMin) latMin = lat;
-    if (lat > latMax) latMax = lat;
-    if (lon < lonMin) lonMin = lon;
-    if (lon > lonMax) lonMax = lon;
-  }
-  return (latMax - latMin) * (lonMax - lonMin);
 }
 
 const NOTAM_COLOR = '#dc2626';
