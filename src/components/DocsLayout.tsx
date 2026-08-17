@@ -7,45 +7,49 @@ interface Props {
   children: ReactNode;
 }
 
+const FOOTER_LINK =
+  'rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text';
+
 export default function DocsLayout({ title, children }: Props) {
   return (
     <div
-      className="bg-white text-gray-900"
+      className="bg-paper text-ink"
       style={{ height: '100dvh', overflowY: 'auto' }}
     >
-      <header className="sticky top-0 z-10 h-12 border-b border-gray-200 flex items-center px-3 md:px-6 bg-gradient-to-r from-blue-600 to-blue-700 gap-3">
-        <Link
-          href="/"
-          className="text-white text-base md:text-lg font-bold hover:underline"
-        >
-          NOTAM Visualizer
-        </Link>
-        <span className="text-white/80 text-sm">/ {title}</span>
+      <header className="safe-top sticky top-0 z-10 border-b border-rule bg-paper-raised">
+        <div className="mx-auto flex h-12 max-w-2xl items-center gap-2 px-4">
+          <Link
+            href="/"
+            className="font-display text-base font-semibold tracking-tight text-ink transition-colors hover:text-accent-text"
+          >
+            NOTAM Visualizer
+          </Link>
+          <span className="text-ink-3" aria-hidden>
+            /
+          </span>
+          <span className="truncate text-sm text-ink-3">{title}</span>
+        </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 md:py-10">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
+      <main className="mx-auto max-w-2xl px-4 py-6 md:py-10">
+        <h1 className="mb-3 font-display text-2xl font-semibold text-ink">
           {title}
         </h1>
         {children}
       </main>
 
-      <footer className="max-w-2xl mx-auto px-4 pt-6 pb-10 text-[11px] text-gray-500 flex items-center gap-2 safe-bottom">
-        <span className="tabular-nums">v{APP_VERSION}</span>
-        <span aria-hidden>·</span>
-        <Link href="/" className="hover:text-blue-600 hover:underline">
+      <footer className="safe-bottom mx-auto flex max-w-2xl items-center gap-1 px-4 pb-10 pt-6 text-2xs text-ink-3">
+        <span className="me-1 font-mono tabular-nums">v{APP_VERSION}</span>
+        <Link href="/" className={FOOTER_LINK}>
           App
         </Link>
-        <span aria-hidden>·</span>
-        <Link href="/support" className="hover:text-blue-600 hover:underline">
+        <Link href="/support" className={FOOTER_LINK}>
           Support
         </Link>
-        <span aria-hidden>·</span>
-        <Link href="/terms" className="hover:text-blue-600 hover:underline">
+        <Link href="/terms" className={FOOTER_LINK}>
           Terms
         </Link>
-        <span aria-hidden>·</span>
-        <Link href="/privacy" className="hover:text-blue-600 hover:underline">
+        <Link href="/privacy" className={FOOTER_LINK}>
           Privacy
         </Link>
       </footer>

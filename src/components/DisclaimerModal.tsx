@@ -19,16 +19,18 @@ export default function DisclaimerModal({ onAccept, onOpenLegal }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/50 backdrop-blur-sm px-3 py-4 md:py-8"
+      className="fixed inset-0 z-[10020] flex items-center justify-center bg-paper-overlay px-3 py-4 md:py-8"
       role="dialog"
       aria-modal="true"
       aria-label="Disclaimer"
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col overflow-hidden">
-        <div className="shrink-0 px-4 py-3 border-b border-gray-200">
-          <h2 className="text-base font-bold text-gray-900">Disclaimer</h2>
+      <div className="neatline flex w-full max-w-md flex-col overflow-hidden rounded-md bg-paper-raised shadow-lg">
+        <div className="shrink-0 border-b border-rule px-4 py-3">
+          <h2 className="font-display text-base font-semibold text-ink">
+            Disclaimer
+          </h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm leading-relaxed text-gray-800">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-sm leading-relaxed text-ink-2">
           <p>
             This tool visualizes NOTAMs for situational awareness only. It is{' '}
             <strong>not for operational flight planning</strong>.
@@ -41,14 +43,14 @@ export default function DisclaimerModal({ onAccept, onOpenLegal }: Props) {
             By continuing, you acknowledge our Terms of Use and Privacy Notice.
           </p>
         </div>
-        <div className="shrink-0 px-4 py-3 border-t border-gray-200 flex items-center justify-between gap-2 safe-bottom">
-          <span className="text-[11px] text-gray-500 flex items-center gap-2">
-            <span className="tabular-nums">v{APP_VERSION}</span>
+        <div className="safe-bottom flex shrink-0 items-center justify-between gap-2 border-t border-rule px-4 py-3">
+          <span className="flex items-center gap-1 text-2xs text-ink-3">
+            <span className="font-mono tabular-nums">v{APP_VERSION}</span>
             <span aria-hidden>·</span>
             <button
               type="button"
               onClick={() => onOpenLegal('terms')}
-              className="hover:text-blue-600 hover:underline"
+              className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Terms
             </button>
@@ -56,7 +58,7 @@ export default function DisclaimerModal({ onAccept, onOpenLegal }: Props) {
             <button
               type="button"
               onClick={() => onOpenLegal('privacy')}
-              className="hover:text-blue-600 hover:underline"
+              className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Privacy
             </button>
@@ -64,7 +66,7 @@ export default function DisclaimerModal({ onAccept, onOpenLegal }: Props) {
           <button
             type="button"
             onClick={onAccept}
-            className="px-4 py-1.5 bg-blue-600 text-white rounded font-semibold text-sm hover:bg-blue-700"
+            className="inline-flex h-10 shrink-0 items-center rounded-sm bg-accent-strong px-5 text-sm font-medium text-ink-inverse transition-colors hover:bg-accent"
           >
             Accept
           </button>

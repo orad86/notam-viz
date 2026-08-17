@@ -17,14 +17,14 @@ function renderInline(text: string): ReactNode[] {
           href={match[3]}
           target="_blank"
           rel="noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-nav hover:underline"
         >
           {match[2]}
         </a>,
       );
     } else if (match[4]) {
       parts.push(
-        <code key={key++} className="font-mono text-[12px] bg-gray-100 px-1 rounded">
+        <code key={key++} className="rounded-xs bg-paper-sunk px-1 font-mono text-xs">
           {match[4]}
         </code>,
       );
@@ -45,7 +45,7 @@ export function renderMarkdown(md: string): ReactNode[] {
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
     out.push(
-      <p key={key++} className="my-3 text-sm leading-relaxed text-gray-800">
+      <p key={key++} className="my-3 text-sm leading-relaxed text-ink-2">
         {renderInline(paragraph.join(' '))}
       </p>,
     );
@@ -54,7 +54,7 @@ export function renderMarkdown(md: string): ReactNode[] {
   const flushList = () => {
     if (list.length === 0) return;
     out.push(
-      <ul key={key++} className="my-3 ml-5 list-disc text-sm text-gray-800 space-y-1">
+      <ul key={key++} className="my-3 ms-5 list-disc space-y-1 text-sm text-ink-2">
         {list.map((item, i) => (
           <li key={i}>{renderInline(item)}</li>
         ))}
@@ -69,7 +69,7 @@ export function renderMarkdown(md: string): ReactNode[] {
       flushParagraph();
       flushList();
       out.push(
-        <h4 key={key++} className="mt-5 mb-2 text-sm font-semibold text-gray-900">
+        <h4 key={key++} className="mb-2 mt-5 font-display text-sm font-semibold text-ink">
           {renderInline(line.slice(5))}
         </h4>,
       );
@@ -77,7 +77,7 @@ export function renderMarkdown(md: string): ReactNode[] {
       flushParagraph();
       flushList();
       out.push(
-        <h3 key={key++} className="mt-5 mb-2 text-[15px] font-semibold text-gray-900">
+        <h3 key={key++} className="mb-2 mt-5 font-display text-base font-semibold text-ink">
           {renderInline(line.slice(4))}
         </h3>,
       );
@@ -85,7 +85,7 @@ export function renderMarkdown(md: string): ReactNode[] {
       flushParagraph();
       flushList();
       out.push(
-        <h2 key={key++} className="mt-6 mb-2 text-base font-bold text-gray-900">
+        <h2 key={key++} className="mb-2 mt-6 font-display text-lg font-semibold text-ink">
           {renderInline(line.slice(3))}
         </h2>,
       );
@@ -99,7 +99,7 @@ export function renderMarkdown(md: string): ReactNode[] {
     } else if (line === '---') {
       flushParagraph();
       flushList();
-      out.push(<hr key={key++} className="my-5 border-gray-200" />);
+      out.push(<hr key={key++} className="isogonic my-5" />);
     } else if (line.trim() === '') {
       flushParagraph();
       flushList();

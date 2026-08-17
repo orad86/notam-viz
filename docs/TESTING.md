@@ -35,10 +35,12 @@ Source files under `src/lib/**/*.ts` and whether they have a Vitest unit test. "
 | --- | --- | --- |
 | `src/lib/notam/parser.ts` | yes | [tests/notam/parser.test.ts](../tests/notam/parser.test.ts) — fixture-backed; minimal NOTAM, permanent, multi-line, mobile layout. |
 | `src/lib/notam/coord-parser.ts` | yes | [tests/notam/coord-parser.test.ts](../tests/notam/coord-parser.test.ts) — DMS/DM patterns + dedup. |
-| `src/lib/notam/qcodes.ts` | yes | [tests/notam/qcodes.test.ts](../tests/notam/qcodes.test.ts) — pins the substring(0,2) bug. |
+| `src/lib/notam/qcodes.ts` | yes | [tests/notam/qcodes.test.ts](../tests/notam/qcodes.test.ts) — pins the substring(0,2) bug; `decodeQCode` descriptions, incl. `AR` (ATS route) and the deliberate absence of `AR` from the category table. |
 | `src/lib/notam/altitude.ts` | yes | [tests/notam/altitude.test.ts](../tests/notam/altitude.test.ts) — user input + Q-line 3-digit codes + band combinator. |
-| `src/lib/notam/format.ts` | yes | [tests/notam/format.test.ts](../tests/notam/format.test.ts) — date, eItem, altitude range, scope, traffic, category color. |
+| `src/lib/notam/format.ts` | yes | [tests/notam/format.test.ts](../tests/notam/format.test.ts) — date, eItem (incl. unmatched trailing paren), altitude range, scope, traffic, category color. |
 | `src/lib/notam/geometry.ts` | yes | [tests/notam/geometry.test.ts](../tests/notam/geometry.test.ts) — bbox area for polygon NOTAMs. |
+| `src/lib/notam/decode.ts` | yes | [tests/notam/decode.test.ts](../tests/notam/decode.test.ts) — headline from Q-code, category fallback, XX plain-language, PERM, schedule vocabulary + clause punctuation, abbreviation tokenising. Every body assertion round-trips the tokens back to the source string: expansions are additive, so losing a character is a correctness bug. |
+| `src/components/map/hit-test.ts` | yes | [tests/map/hit-test.test.ts](../tests/map/hit-test.test.ts) — nested shapes return all hits topmost-first, multi-layer NOTAMs counted once, unmounted ids skipped, non-path layers ignored. Stubs `map.mouseEventToLayerPoint` and `_containsPoint`, so it needs no jsdom. |
 | `src/lib/notam/route-filter.ts` | yes | [tests/notam/route-filter.test.ts](../tests/notam/route-filter.test.ts) — corridor + altitude band matching. |
 | `src/lib/notam/airports.ts` | no | Static lookup table; covered indirectly by `parser.ts` tests. |
 | `src/lib/server/scraper-mobile.ts` | yes (validators only) | [tests/server/scraper-mobile.test.ts](../tests/server/scraper-mobile.test.ts) — pure WAF validators against captured HTML. The live scrape is exercised in CI by `scripts/scrape.ts`, not from Vitest. |
@@ -48,7 +50,7 @@ Source files under `src/lib/**/*.ts` and whether they have a Vitest unit test. "
 | `src/lib/aviation-icons.ts` | no | Inline SVG strings + `divIcon` factory; trivial. |
 | `src/lib/render-markdown.tsx` | no | Component — defer until a UI harness exists. |
 | `src/lib/version.ts` | no | Re-export of `package.json#version`. |
-| `src/components/**` | no | No UI test harness yet. |
+| `src/components/**` | no | No UI test harness yet. The map's decidable logic is deliberately extracted into `map/hit-test.ts` so it can be covered without one; verification of the rendered map is Playwright-by-hand during PR review. |
 | `src/hooks/**` | no | Hooks rely on the React runtime. |
 | `src/app/api/notams/route.ts` | no | Needs KV / rate-limit mocks. |
 

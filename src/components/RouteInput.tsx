@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Plane, X } from 'lucide-react';
 import {
   Route,
   RoutePoint,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/notam/route-filter';
 import { parseAltitudeFt } from '@/lib/notam/altitude';
 import { useClickOutside } from '@/hooks/useClickOutside';
+import { cn } from '@/lib/cn';
 
 interface Props {
   index: RoutePointIndex;
@@ -17,11 +19,12 @@ interface Props {
   setRoute: (r: Route | null) => void;
 }
 
+// Matches the aviation symbology on the map's reference layers.
 const SOURCE_COLOR: Record<RoutePoint['source'], string> = {
-  airport: '#dc2626',
-  navaid: '#10b981',
-  vfr: '#8b5cf6',
-  ifr: '#f97316',
+  airport: 'var(--danger)',
+  navaid: 'var(--ok)',
+  vfr: 'var(--series-5)',
+  ifr: 'var(--series-2)',
 };
 
 export default function RouteInput({ index, route, setRoute }: Props) {
@@ -90,14 +93,23 @@ export default function RouteInput({ index, route, setRoute }: Props) {
   const canApply = parsed.resolved.length >= 1 && altitudeValid;
 
   return (
-    <div className="border-b border-gray-200 bg-gray-50">
+    <div className="border-b border-rule bg-paper-sunk">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+        className="flex min-h-10 w-full items-center justify-between gap-2 px-3 py-2 transition-colors hover:bg-paper"
       >
-        <span>✈ Plan route{route ? ` · ${route.points.length} pts` : ''}</span>
-        <span className="text-gray-400 text-xs">{open ? '▾' : '▸'}</span>
+        <span className="flex items-center gap-1.5">
+          <Plane className="size-3.5 text-ink-3" aria-hidden />
+          <span className="plate-label">
+            Plan route{route ? ` · ${route.points.length} pts` : ''}
+          </span>
+        </span>
+        {open ? (
+          <ChevronDown className="size-3.5 text-ink-3" aria-hidden />
+        ) : (
+          <ChevronRight className="size-3.5 text-ink-3" aria-hidden />
+        )}
       </button>
 
       {open && (
@@ -110,26 +122,26 @@ export default function RouteInput({ index, route, setRoute }: Props) {
               value={input}
               onChange={(e) => handleInput(e.target.value)}
               onFocus={() => setSuggestOpen(caretToken.length > 0)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+              className="h-9 w-full rounded-sm border border-rule-strong bg-paper-raised px-2.5 font-mono text-xs uppercase text-ink transition-colors placeholder:text-ink-3 hover:border-ink-3"
             />
             {suggestOpen && suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded shadow-lg z-20 text-sm">
+              <div className="scrollbar-hairline absolute inset-x-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-rule bg-paper-raised shadow-lg">
                 {suggestions.map((s) => (
                   <button
                     key={`${s.code}-${s.source}`}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => insertSuggestion(s)}
-                    className="w-full text-left px-2 py-1 hover:bg-blue-50 flex items-center gap-2"
+                    className="flex min-h-9 w-full items-center gap-2 px-2.5 text-start transition-colors hover:bg-accent-wash"
                   >
                     <span
-                      className="inline-block w-2 h-2 rounded-full shrink-0"
+                      className="size-2 shrink-0 rounded-pill"
                       style={{ backgroundColor: SOURCE_COLOR[s.source] }}
                     />
-                    <span className="font-mono font-semibold text-gray-900">
+                    <span className="font-mono text-xs font-medium text-ink">
                       {s.code}
                     </span>
-                    <span className="text-[10px] text-gray-500 ml-auto capitalize">
+                    <span className="ms-auto text-2xs capitalize text-ink-3">
                       {s.source}
                     </span>
                   </button>
@@ -146,14 +158,15 @@ export default function RouteInput({ index, route, setRoute }: Props) {
                 return (
                   <span
                     key={`${t}-${i}`}
-                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-xs border px-1.5 py-1 font-mono text-2xs font-medium',
                       rp
-                        ? 'bg-white text-gray-800 border-gray-300'
-                        : 'bg-red-50 text-red-700 border-red-300'
-                    }`}
+                        ? 'border-rule-strong bg-paper-raised text-ink-2'
+                        : 'border-danger/40 bg-danger-wash text-danger',
+                    )}
                   >
                     <span
-                      className="inline-block w-1.5 h-1.5 rounded-full"
+                      className="size-1.5 rounded-pill"
                       style={{ backgroundColor: color }}
                     />
                     {t.toUpperCase()}
@@ -161,10 +174,10 @@ export default function RouteInput({ index, route, setRoute }: Props) {
                     <button
                       type="button"
                       onClick={() => removeToken(i)}
-                      className="text-gray-400 hover:text-gray-700"
+                      className="text-ink-3 transition-colors hover:text-ink"
                       aria-label={`Remove ${t}`}
                     >
-                      ✕
+                      <X className="size-3" aria-hidden />
                     </button>
                   </span>
                 );
@@ -172,18 +185,19 @@ export default function RouteInput({ index, route, setRoute }: Props) {
             </div>
           )}
 
-          <label className="text-[11px] text-gray-600 block">
-            <span className="block mb-0.5 font-semibold">Altitude</span>
+          <label className="block">
+            <span className="plate-label">Altitude</span>
             <input
               type="text"
               value={altitude}
               onChange={(e) => setAltitude(e.target.value)}
               placeholder="FL080"
-              className={`w-full px-2 py-1 border rounded text-xs font-mono uppercase focus:outline-none focus:ring-2 ${
+              className={cn(
+                'mt-1 h-9 w-full rounded-sm border bg-paper-raised px-2.5 font-mono text-xs uppercase transition-colors',
                 altitudeValid
-                  ? 'border-gray-300 text-gray-900 focus:ring-blue-500'
-                  : 'border-red-300 text-red-700 focus:ring-red-400'
-              }`}
+                  ? 'border-rule-strong text-ink hover:border-ink-3'
+                  : 'border-danger text-danger hover:border-danger',
+              )}
             />
           </label>
 
@@ -192,7 +206,7 @@ export default function RouteInput({ index, route, setRoute }: Props) {
               type="button"
               onClick={apply}
               disabled={!canApply}
-              className="flex-1 px-2 py-1.5 rounded text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="inline-flex h-9 flex-1 items-center justify-center rounded-sm bg-accent-strong text-xs font-medium text-ink-inverse transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-rule disabled:text-ink-3"
             >
               Apply route
             </button>
@@ -200,7 +214,7 @@ export default function RouteInput({ index, route, setRoute }: Props) {
               <button
                 type="button"
                 onClick={clear}
-                className="px-2 py-1.5 rounded text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="inline-flex h-9 items-center justify-center rounded-sm border border-rule-strong bg-paper-raised px-3 text-xs font-medium text-ink transition-colors hover:bg-paper-sunk"
               >
                 Clear
               </button>

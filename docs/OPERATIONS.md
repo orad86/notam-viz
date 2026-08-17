@@ -33,7 +33,7 @@ A Vercel KV integration auto-injects `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV
 | [.env.local.example](../.env.local.example) | Template for `.env.local`. Tracked. |
 | [next.config.mjs](../next.config.mjs) | Sets `reactStrictMode: true`; `serverComponentsExternalPackages: ['playwright']` so Next.js doesn't try to bundle Chromium. |
 | [tsconfig.json](../tsconfig.json) | Path alias `@/* -> src/*`. Standard Next.js 14 setup. |
-| [tailwind.config.ts](../tailwind.config.ts) / [postcss.config.mjs](../postcss.config.mjs) | Tailwind + PostCSS. |
+| [postcss.config.mjs](../postcss.config.mjs) | PostCSS. Loads `@tailwindcss/postcss` (Tailwind v4). There is no `tailwind.config.ts` — v4 auto-detects sources and the theme lives in [src/app/theme/](../src/app/theme/). |
 | [.github/workflows/scrape.yml](../.github/workflows/scrape.yml) | Daily cron + manual dispatch for `scripts/scrape.ts`. |
 
 No feature-flag system. No per-environment YAML. All behaviour is in code.

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getCategoryFromQLine, getCategoryFromQCode } from '@/lib/notam/qcodes';
+import {
+  decodeQCode,
+  getCategoryFromQLine,
+  getCategoryFromQCode,
+} from '@/lib/notam/qcodes';
 
 describe('getCategoryFromQCode', () => {
   it('maps facility codes to airport', () => {
@@ -43,5 +47,39 @@ describe('getCategoryFromQLine', () => {
 
   it('accepts lowercase Q-codes', () => {
     expect(getCategoryFromQLine('LLLL/qfalc/IV/NBO/A/000/999/3200N03450E005')).toBe('airport');
+  });
+});
+
+describe('decodeQCode', () => {
+  it('describes a runway closure', () => {
+    const d = decodeQCode('QMRLC');
+    expect(d.subjectCode).toBe('MR');
+    expect(d.conditionCode).toBe('LC');
+    expect(d.subjectDescription).toBe('Movement - Runway');
+    expect(d.conditionDescription).toBe('Closed');
+  });
+
+  // QARLC appears in the live IAA feed. `AR` was absent from
+  // SUBJECT_DESCRIPTIONS, so the decoder fell back to a generic word and the
+  // detail headline read "Navaid closed" instead of naming the route.
+  it('describes ATS route subjects (AR)', () => {
+    expect(decodeQCode('QARLC').subjectDescription).toBe('Airspace - ATS route');
+  });
+
+  // AR must NOT have been added to the category table: that would move existing
+  // QAR* NOTAMs between filter buckets, which is a behaviour change, not a
+  // wording fix.
+  it('leaves the AR category mapping untouched', () => {
+    expect(getCategoryFromQCode('AR')).toBe('other');
+  });
+
+  it('reports unknown subject and condition codes distinctly', () => {
+    const d = decodeQCode('QZZQQ');
+    expect(d.subjectDescription).toMatch(/^Unknown subject code/);
+    expect(d.conditionDescription).toMatch(/^Unknown condition code/);
+  });
+
+  it('rejects a malformed code', () => {
+    expect(decodeQCode('NOPE').subjectDescription).toBe('Invalid Q-code format');
   });
 });

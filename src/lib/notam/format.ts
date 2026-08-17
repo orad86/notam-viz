@@ -24,7 +24,21 @@ function trimTrailingParen(s: string | undefined): string {
 // Whitespace inside the body is preserved — callers wanting a single-line
 // form should follow up with `.replace(/\s+/g, ' ')`.
 export function eItemText(n: ParsedNotam): string {
-  return (n.eItem ?? '').replace(/^E\)\s*/, '').replace(/E\)\s*/g, '').trim();
+  const text = (n.eItem ?? '')
+    .replace(/^E\)\s*/, '')
+    .replace(/E\)\s*/g, '')
+    .trim();
+
+  // The IAA feed leaves an unmatched `)` on the end of many E-items (an
+  // artefact of how the source page delimits the field), so live text reads
+  // "AD CLSD DUE WIP.)". Only strip it when nothing opened it — a NOTAM whose
+  // body legitimately ends in a parenthetical keeps its punctuation.
+  const opens = (text.match(/\(/g) ?? []).length;
+  const closes = (text.match(/\)/g) ?? []).length;
+  if (closes > opens && text.endsWith(')')) {
+    return text.slice(0, -1).trim();
+  }
+  return text;
 }
 
 export function formatAltitudeRange(n: ParsedNotam): string | null {

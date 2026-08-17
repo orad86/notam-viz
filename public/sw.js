@@ -2,7 +2,11 @@
 // Goal: survive a cold start with no network so the UI shell renders, and
 // fall back to the last successful /api/notams response when offline.
 
-const VERSION = self.__NOTAM_SW_VERSION__ || 'dev';
+// Read from the registration URL (`/sw.js?v=0.7.0`) rather than a placeholder
+// substituted at build time — this file is served verbatim out of public/, so
+// nothing ever performed that substitution and the shell cache was pinned to
+// "notam-shell-dev" across every release.
+const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
 const SHELL_CACHE = `notam-shell-${VERSION}`;
 const API_CACHE = 'notam-api-latest';
 const API_PATH = '/api/notams';
@@ -53,10 +57,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req)),
-  );
+  event.respondWith(cacheFirst(req));
 });
+
+// Cache-first, but it now also POPULATES the cache. Previously this only ever
+// read, and SHELL_ASSETS lists no CSS or JS — so an offline cold start served
+// the precached `/` document pointing at hashed bundles that were never stored,
+// i.e. an unstyled page. The file's stated goal is that the shell renders with
+// no network, which needs the build output cached too.
+//
+// Hashed filenames make this safe: a new build requests new URLs, and the old
+// entries are dropped wholesale when SHELL_CACHE rotates on the version bump.
+async function cacheFirst(req) {
+  const hit = await caches.match(req);
+  if (hit) return hit;
+
+  const resp = await fetch(req);
+  if (resp.ok && resp.type === 'basic') {
+    const cache = await caches.open(SHELL_CACHE);
+    cache.put(req, resp.clone());
+  }
+  return resp;
+}
 
 async function networkFirst(req) {
   try {

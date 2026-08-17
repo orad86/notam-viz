@@ -12,13 +12,13 @@ const SUPPORT_EMAIL = 'orad@aero-logic.org';
 
 function H2({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mt-8 mb-2 text-base font-bold text-gray-900">{children}</h2>
+    <h2 className="mb-2 mt-8 font-display text-lg font-semibold text-ink">{children}</h2>
   );
 }
 
 function P({ children }: { children: React.ReactNode }) {
   return (
-    <p className="my-3 text-sm leading-relaxed text-gray-800">{children}</p>
+    <p className="my-3 text-sm leading-relaxed text-ink-2">{children}</p>
   );
 }
 
@@ -31,7 +31,7 @@ export default function SupportPage() {
         something looks wrong.
       </P>
 
-      <div className="my-4 p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm">
+      <div className="my-4 rounded-sm border border-warn/40 bg-warn-wash p-3 text-sm text-ink-2">
         <strong>Important:</strong> NOTAM Visualizer is for situational awareness only.
         It is <strong>not</strong> a substitute for an official pre-flight
         briefing and must not be used for operational flight planning,
@@ -40,7 +40,7 @@ export default function SupportPage() {
       </div>
 
       <H2>Quick start</H2>
-      <ol className="my-3 ml-5 list-decimal text-sm text-gray-800 space-y-1">
+      <ol className="my-3 ms-5 list-decimal space-y-1 text-sm text-ink-2">
         <li>Open the app — accept the disclaimer to continue.</li>
         <li>
           The map shows every NOTAM in the current snapshot. Tap any shape
@@ -57,7 +57,7 @@ export default function SupportPage() {
         The filter bar at the top of the sidebar lets you narrow the list by
         text, category, active-only, and time window:
       </P>
-      <ul className="my-3 ml-5 list-disc text-sm text-gray-800 space-y-1">
+      <ul className="my-3 ms-5 list-disc space-y-1 text-sm text-ink-2">
         <li>
           <strong>Search</strong> — matches any word in the NOTAM ID, location,
           or body text.
@@ -134,7 +134,7 @@ export default function SupportPage() {
       </P>
 
       <H2>Troubleshooting</H2>
-      <ul className="my-3 ml-5 list-disc text-sm text-gray-800 space-y-1">
+      <ul className="my-3 ms-5 list-disc space-y-1 text-sm text-ink-2">
         <li>
           <strong>No NOTAMs / blank map.</strong> Pull to refresh, or close and
           reopen the app. If the daily scrape failed, the app falls back to
@@ -162,7 +162,7 @@ export default function SupportPage() {
       <P>
         NOTAM Visualizer collects no personal data, has no accounts, and runs no
         analytics or advertising. See the{' '}
-        <Link href="/privacy" className="text-blue-600 hover:underline">
+        <Link href="/privacy" className="text-nav hover:underline">
           Privacy Notice
         </Link>{' '}
         for details.
@@ -173,7 +173,7 @@ export default function SupportPage() {
         For questions, bug reports, or feature requests, email{' '}
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
-          className="text-blue-600 hover:underline"
+          className="text-nav hover:underline"
         >
           {SUPPORT_EMAIL}
         </a>

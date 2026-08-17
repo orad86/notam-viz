@@ -104,7 +104,7 @@ Selection logic in [src/lib/notam-parser.ts](../src/lib/notam-parser.ts) `parseN
 
 Rendering behaviour:
 - **Point:** default Leaflet marker.
-- **Circle:** `L.Circle` in projected meters. Capped at 200 NM visual radius. Circles ≥ `FIR_SCALE_RADIUS_NM` (150 NM, in [src/components/MapView.tsx](../src/components/MapView.tsx)) downgrade to a `CircleMarker` dot at the centre to avoid covering the whole basemap.
+- **Circle:** `L.Circle` in projected meters. Capped at 200 NM visual radius. Circles ≥ `FIR_SCALE_RADIUS_NM` (150 NM, in [src/lib/notam/format.ts](../src/lib/notam/format.ts)) downgrade to a `CircleMarker` dot at the centre to avoid covering the whole basemap.
 - **Polygon:** filled `L.Polygon` with per-category colour, fill opacity 0.15 (0.35 when selected).
 - **Multipoint:** one small filled `CircleMarker` per coordinate — honest visualization of "these points are listed but their relationship isn't a valid polygon".
 

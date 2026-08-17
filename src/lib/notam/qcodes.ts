@@ -190,6 +190,11 @@ const SUBJECT_DESCRIPTIONS: Record<string, string> = {
   AE: 'Airspace - Activation',
   AF: 'Airspace - Affected area',
   AO: 'Airspace - Organization',
+  // AR is a real, common Israeli subject (QARLC appears in the live feed) that
+  // was missing here, so those NOTAMs fell through to the generic fallback.
+  // Description only — deliberately NOT added to SUBJECT_CATEGORIES, since
+  // changing a NOTAM's category would move it between filter buckets.
+  AR: 'Airspace - ATS route',
   CA: 'Communications - Aeronautical fixed service',
   CB: 'Communications - ADS-B',
   CC: 'Communications - Communication facility',
