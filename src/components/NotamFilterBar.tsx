@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ArrowUpDown, Clock, Search, X } from 'lucide-react';
 import { NotamCategory, ParsedNotam } from '@/types/notam';
 import { SortBy } from '@/hooks/useNotamFilter';
 import { TimeWindow } from '@/lib/notam/route-filter';
 import { useClickOutside } from '@/hooks/useClickOutside';
+import { cn } from '@/lib/cn';
 import ExportMenu from './ExportMenu';
 
 interface Props {
@@ -43,6 +45,12 @@ const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
   { value: 'id', label: 'By ID' },
 ];
 
+const CHIP_BASE =
+  'inline-flex h-8 shrink-0 items-center rounded-pill border px-2.5 text-2xs font-medium transition-colors';
+const CHIP_ON = 'border-accent/30 bg-accent-wash text-accent-text';
+const CHIP_OFF =
+  'border-rule-strong bg-paper-raised text-ink-2 hover:bg-paper-sunk hover:text-ink';
+
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }
@@ -75,6 +83,9 @@ function windowLabel(w: TimeWindow | null): string {
   if (spanH < 48) return `${Math.round(spanH)}h`;
   return `${Math.round(spanH / 24)}d`;
 }
+
+const FIELD =
+  'w-full rounded-sm border border-rule-strong bg-paper-raised px-2.5 py-2 text-xs text-ink transition-colors hover:border-ink-3';
 
 export default function NotamFilterBar({
   searchText,
@@ -123,36 +134,56 @@ export default function NotamFilterBar({
   };
 
   return (
-    <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 pt-3 pb-2 space-y-2">
-      <div className="flex items-center gap-2">
+    <div className="sticky top-0 z-10 space-y-2 border-b border-rule bg-paper-raised px-3 pb-2 pt-3">
+      <div className="flex items-center gap-1.5">
         <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
+            aria-hidden
+          />
           <input
             type="text"
+            // Short on purpose: the sidebar is 320px and shares this row with
+            // three buttons, so a longer placeholder collides with the count.
             placeholder="Search…"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full pl-3 pr-14 py-1.5 border border-gray-300 rounded text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={cn(FIELD, 'h-9 ps-8', searchText ? 'pe-8' : 'pe-14')}
+            aria-label="Search NOTAMs"
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 tabular-nums">
-            {filteredCount}/{totalCount}
-          </span>
+          {searchText ? (
+            <button
+              type="button"
+              onClick={() => setSearchText('')}
+              aria-label="Clear search"
+              className="absolute end-1 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-xs text-ink-3 transition-colors hover:bg-paper-sunk hover:text-ink"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          ) : (
+            <span className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 font-mono text-2xs text-ink-3 tabular-nums">
+              {filteredCount}/{totalCount}
+            </span>
+          )}
         </div>
 
         <div className="relative" ref={timeRef}>
           <button
             type="button"
             onClick={() => setTimeOpen((v) => !v)}
-            className={`px-2 py-1 rounded border text-[11px] font-semibold ${
-              timeWindow
-                ? 'bg-blue-600 text-white border-blue-700'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
+            aria-expanded={timeOpen}
+            className={cn(
+              'inline-flex h-9 items-center gap-1 rounded-sm border px-2 text-2xs font-medium transition-colors',
+              timeWindow ? CHIP_ON : CHIP_OFF,
+            )}
             title="Time window filter"
           >
-            🕐 {windowLabel(timeWindow)}
+            <Clock className="size-3.5" aria-hidden />
+            {windowLabel(timeWindow)}
           </button>
+
           {timeOpen && (
-            <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded shadow-lg z-20 text-xs p-2 space-y-2">
+            <div className="absolute end-0 z-20 mt-1 w-60 space-y-2 rounded-md border border-rule bg-paper-raised p-2 shadow-lg">
               <div className="flex flex-wrap gap-1">
                 {[
                   { label: 'Any time', w: null },
@@ -168,35 +199,36 @@ export default function NotamFilterBar({
                       setTimeWindow(q.w);
                       setTimeOpen(false);
                     }}
-                    className="px-2 py-0.5 rounded-full border border-gray-300 bg-white hover:bg-blue-50 text-gray-700 font-semibold"
+                    className={cn(CHIP_BASE, CHIP_OFF)}
                   >
                     {q.label}
                   </button>
                 ))}
               </div>
-              <div className="border-t border-gray-100 pt-2 space-y-1.5">
-                <label className="block text-[11px] text-gray-600">
-                  <span className="block mb-0.5 font-semibold">From (local)</span>
+
+              <div className="space-y-1.5 border-t border-rule pt-2">
+                <label className="block">
+                  <span className="plate-label">From (local)</span>
                   <input
                     type="datetime-local"
                     value={fromLocal}
                     onChange={(e) => setFromLocal(e.target.value)}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={cn(FIELD, 'mt-1')}
                   />
                 </label>
-                <label className="block text-[11px] text-gray-600">
-                  <span className="block mb-0.5 font-semibold">To (local)</span>
+                <label className="block">
+                  <span className="plate-label">To (local)</span>
                   <input
                     type="datetime-local"
                     value={toLocal}
                     onChange={(e) => setToLocal(e.target.value)}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={cn(FIELD, 'mt-1')}
                   />
                 </label>
                 <button
                   type="button"
                   onClick={applyCustom}
-                  className="w-full mt-1 px-2 py-1 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700"
+                  className="mt-1 inline-flex h-9 w-full items-center justify-center rounded-sm bg-accent-strong text-xs font-medium text-ink-inverse transition-colors hover:bg-accent"
                 >
                   Apply range
                 </button>
@@ -205,22 +237,25 @@ export default function NotamFilterBar({
           )}
         </div>
 
-        <ExportMenu notams={notamsForExport} variant="pill" />
+        <ExportMenu notams={notamsForExport} />
 
         <div className="relative" ref={sortRef}>
           <button
             type="button"
             onClick={() => setSortOpen((v) => !v)}
-            className="p-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+            aria-expanded={sortOpen}
+            className={cn(
+              'inline-flex size-9 items-center justify-center rounded-sm border transition-colors',
+              CHIP_OFF,
+            )}
             title="Sort"
             aria-label="Sort"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5 3l-3 3h2v7h2V6h2L5 3zm6 10l3-3h-2V3h-2v7H8l3 3z" />
-            </svg>
+            <ArrowUpDown className="size-3.5" aria-hidden />
           </button>
+
           {sortOpen && (
-            <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded shadow-lg z-20 text-sm">
+            <div className="absolute end-0 z-20 mt-1 w-44 overflow-hidden rounded-md border border-rule bg-paper-raised shadow-lg">
               {SORT_OPTIONS.map((o) => (
                 <button
                   key={o.value}
@@ -229,9 +264,12 @@ export default function NotamFilterBar({
                     setSortBy(o.value);
                     setSortOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 hover:bg-blue-50 ${
-                    sortBy === o.value ? 'font-semibold text-blue-700' : 'text-gray-700'
-                  }`}
+                  className={cn(
+                    'block w-full px-3 py-2.5 text-start text-xs transition-colors hover:bg-accent-wash',
+                    sortBy === o.value
+                      ? 'font-medium text-accent-text'
+                      : 'text-ink-2',
+                  )}
                 >
                   {o.label}
                 </button>
@@ -241,29 +279,26 @@ export default function NotamFilterBar({
         </div>
       </div>
 
-      <div className="flex flex-nowrap gap-1 overflow-x-auto -mx-1 px-1 pb-0.5 scrollbar-thin">
+      <div className="scrollbar-hairline -mx-1 flex flex-nowrap gap-1 overflow-x-auto px-1 pb-1">
         <button
           type="button"
           onClick={() => setActiveOnly(!activeOnly)}
-          className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+          className={cn(
+            CHIP_BASE,
             activeOnly
-              ? 'bg-green-600 text-white border-green-700'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
+              ? 'border-ok/30 bg-ok-wash text-ok'
+              : CHIP_OFF,
+          )}
         >
           Active
         </button>
-        <span className="w-px bg-gray-200 mx-0.5 shrink-0" aria-hidden />
+        <span className="mx-0.5 w-px shrink-0 bg-rule" aria-hidden />
         {CATEGORY_CHIPS.map((c) => (
           <button
             key={c.value}
             type="button"
             onClick={() => setCategory(c.value)}
-            className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
-              category === c.value
-                ? 'bg-blue-600 text-white border-blue-700'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
+            className={cn(CHIP_BASE, category === c.value ? CHIP_ON : CHIP_OFF)}
           >
             {c.label}
           </button>
@@ -274,9 +309,10 @@ export default function NotamFilterBar({
         <button
           type="button"
           onClick={clearFilters}
-          className="text-[11px] text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1 rounded-xs py-1 text-2xs font-medium text-accent-text transition-colors hover:underline"
         >
-          Clear filters ✕
+          <X className="size-3" aria-hidden />
+          Clear filters
         </button>
       )}
     </div>

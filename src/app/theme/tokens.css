@@ -1,0 +1,160 @@
+/**
+ * HOUSE DESIGN TOKENS — "Sectional chart / daylight editorial"
+ *
+ * Destined for `@orad86/ui/theme.css`. Deliberately plain CSS custom
+ * properties: no `@theme`, no `@apply`, no Tailwind syntax of any kind, so
+ * this file stays consumable by apps on Tailwind 3 (notam-viz) or on no
+ * Tailwind at all (research-assistant). The Tailwind v4 sugar lives next
+ * door in tailwind-bridge.css and is opt-in.
+ *
+ * NAMING: every property here is deliberately OUTSIDE Tailwind v4's theme
+ * namespaces (--text-*, --font-*, --radius-*, --shadow-*, --leading-*,
+ * --tracking-*, --ease-*). Using those names would make the bridge
+ * self-referential (`--text-sm: var(--text-sm)`). Hence --fs-*, --type-*,
+ * --corner-*, --elev-*, --lh-*, --ls-*, --curve-*.
+ *
+ * Apps override ONLY --accent* and --type-display (see skytutor.css).
+ * Everything else is shared across the product family.
+ *
+ * The visual reference is a printed aeronautical chart: warm paper stock,
+ * navy ink, hairline contours, and aviation orange reserved for whatever is
+ * active or needs attention.
+ */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────
+     A three-step paper stack. `raised` is lighter than the page so cards
+     lift off it; `sunk` is darker for wells, table headers and inputs. */
+  --paper: #f5f1e7;
+  --paper-raised: #fdfbf6;
+  --paper-sunk: #ede7d9;
+  --paper-overlay: #14243b52; /* scrim behind modals / mobile drawers */
+
+  /* ── Ink ──────────────────────────────────────────────────────────
+     Contrast ratios against --paper are noted; all body-text values clear
+     WCAG AA (4.5:1). --ink-3 is 4.9:1 — do not lighten it. */
+  --ink: #14243b; /* 14.0:1 */
+  --ink-2: #3d5169; /*  8.1:1 */
+  --ink-3: #5b6b7d; /*  4.9:1 */
+  --ink-inverse: #fdfbf6; /* text on accent / ink fills */
+
+  /* ── Rules ────────────────────────────────────────────────────────
+     Chart neatlines and hairlines. --rule is the default 1px divider. */
+  --rule: #dcd3c0;
+  --rule-strong: #c4b9a1;
+
+  /* ── Accent (app-overridable) ─────────────────────────────────────
+     Three values, not one, because the natural orange sits at 4.1:1 and
+     FAILS AA as body text. --accent is for marks and fills only;
+     --accent-text carries anything typographic; --accent-strong is a
+     button fill dark enough for a white label. */
+  --accent: #c1521f; /* marks, fills, rules — non-text */
+  --accent-text: #a8461a; /*  5.2:1 on paper */
+  --accent-strong: #b0491a; /*  5.5:1 with --ink-inverse label */
+  --accent-wash: #c1521f14; /* tinted row / active nav background */
+
+  /* ── Secondary + status ───────────────────────────────────────────
+     Teal reads as the "navigational" colour: links and secondary series. */
+  --nav: #14666b; /*  5.9:1 */
+  --nav-wash: #14666b14;
+
+  --ok: #2f7a4f; /*  4.6:1 */
+  --ok-wash: #2f7a4f14;
+  --warn: #8f5e10; /*  4.9:1 */
+  --warn-wash: #8f5e1014;
+  --danger: #b3352c; /*  5.5:1 */
+  --danger-wash: #b3352c14;
+
+  /* ── Chart series ─────────────────────────────────────────────────
+     Assigned in FIXED order — slot 1, then 1+2, then 1+2+3. Never cycled,
+     never reassigned when a filter changes the series count: colour follows
+     the entity, not its rank.
+
+     These are NOT hand-picked. The first attempt used the interface palette
+     directly (ink navy, accent orange, nav teal …) and failed validation on
+     three counts — the navy sat below the lightness band, four hues fell
+     under the chroma floor and read as grey, and the ochre came in at 2.5:1
+     against the card surface. These values were re-derived in OKLCH at
+     L 0.50–0.66 / C ≥ 0.10 and verified with the dataviz validator against
+     surface #FDFBF6 (--paper-raised, where charts actually sit):
+
+       lightness band  PASS   all 6 within L 0.43–0.77
+       chroma floor    PASS   all 6 >= 0.10
+       CVD separation  PASS   worst adjacent dE 12.0 (deutan)
+       normal vision   PASS   worst adjacent dE 19.3
+       contrast        PASS   all 6 >= 3:1
+
+     Slots 1–3 additionally clear the harder all-pairs test, so scatter,
+     bubble and small-multiples forms are capped at three series — beyond
+     that, facet or fold into "Other" rather than adding a hue.
+
+     Re-run after ANY change:
+       node scripts/validate_palette.js "<hexes>" --mode light --surface "#FDFBF6" */
+  --series-1: #2063b0; /* blue   */
+  --series-2: #d4651c; /* orange — deliberately near --accent */
+  --series-3: #0c9999; /* teal   */
+  --series-4: #b38c15; /* gold   */
+  --series-5: #984588; /* plum   */
+  --series-6: #418d50; /* green  */
+
+  /* ── Typography ───────────────────────────────────────────────────
+     Font FAMILIES are injected by the host app (next/font in layout.tsx)
+     by rebinding --type-display / --type-body / --type-mono. Primitives
+     never import a font loader — that is what lets a non-Next app consume
+     them. The fallbacks below keep the cascade sane if a host forgets. */
+  --type-display: Georgia, "Times New Roman", serif;
+  --type-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --type-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Font-size scale — 1.2 minor third off a 16px base, rounded to px. */
+  --fs-2xs: 0.6875rem; /* 11 — dense table meta, axis ticks */
+  --fs-xs: 0.75rem; /* 12 */
+  --fs-sm: 0.8125rem; /* 13 — default UI text */
+  --fs-base: 0.9375rem; /* 15 — reading text, chat */
+  --fs-lg: 1.125rem; /* 18 */
+  --fs-xl: 1.375rem; /* 22 */
+  --fs-2xl: 1.75rem; /* 28 — page titles */
+  --fs-3xl: 2.25rem; /* 36 — display */
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-normal: 1.6;
+  --lh-relaxed: 1.75; /* long-form answers */
+
+  --ls-tight: -0.015em;
+  --ls-wide: 0.04em;
+  --ls-caps: 0.1em; /* chart-label small caps */
+
+  /* ── Radii ────────────────────────────────────────────────────────
+     Restrained: printed charts have square corners. Nothing above 10px
+     except the pill. */
+  --corner-xs: 2px;
+  --corner-sm: 4px;
+  --corner-md: 6px;
+  --corner-lg: 10px;
+  --corner-pill: 999px;
+
+  /* ── Elevation ────────────────────────────────────────────────────
+     Paper on paper: shadows are warm navy-tinted and shallow, never
+     neutral grey, or the stack reads as plastic rather than print. */
+  --elev-sm: 0 1px 2px #14243b0f;
+  --elev-md:
+    0 2px 6px #14243b14, 0 1px 2px #14243b0a;
+  --elev-lg:
+    0 8px 24px #14243b1f, 0 2px 6px #14243b0f;
+
+  /* ── Motion ───────────────────────────────────────────────────────
+     Neutralised to 0 under prefers-reduced-motion by the bridge, so
+     components can reference these unconditionally. */
+  --curve-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --curve-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 400ms;
+
+  /* ── Layout rhythm ────────────────────────────────────────────────*/
+  --sidebar-w: 17rem;
+  --admin-sidebar-w: 14rem;
+  --reading-w: 46rem; /* chat / long-form column */
+  --content-w: 82rem; /* admin content max width */
+}

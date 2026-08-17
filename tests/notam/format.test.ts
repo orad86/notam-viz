@@ -60,6 +60,26 @@ describe('eItemText', () => {
       'line one\nline two',
     );
   });
+
+  // The live IAA feed leaves an unmatched trailing `)` on most E-items, so the
+  // detail sheet rendered "AD CLSD DUE WIP.)".
+  it('drops an unmatched trailing paren', () => {
+    expect(eItemText(makeNotam({ eItem: 'E) AD CLSD DUE WIP.)' }))).toBe(
+      'AD CLSD DUE WIP.',
+    );
+  });
+
+  it('keeps a balanced trailing parenthetical intact', () => {
+    expect(
+      eItemText(makeNotam({ eItem: 'E) RWY 12 CLSD (SEE AIP SUP 04/26)' })),
+    ).toBe('RWY 12 CLSD (SEE AIP SUP 04/26)');
+  });
+
+  it('leaves text with no parens alone', () => {
+    expect(eItemText(makeNotam({ eItem: 'E) RWY 12/30 CLSD' }))).toBe(
+      'RWY 12/30 CLSD',
+    );
+  });
 });
 
 describe('formatAltitudeRange', () => {

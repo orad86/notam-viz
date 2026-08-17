@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.0](#shipped-in-v070)
 - [Shipped in v0.6.0](#shipped-in-v060)
 - [Shipped in v0.5.0](#shipped-in-v050)
 - [Shipped in v0.4.0](#shipped-in-v040)
@@ -11,6 +12,38 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.0
+
+UI/UX overhaul: house design system, resolvable overlapping NOTAMs, decoded NOTAM text, mobile detail sheet. Closes #49.
+
+- **Tailwind 3.4 → 4.** `@tailwindcss/postcss` replaces the `tailwindcss` PostCSS plugin; `tailwind.config.ts` deleted (v4 auto-detects sources and the theme bridge replaces `theme.extend`). Migration surface was verified by grep and was small: zero `shadow-sm`/bare `shadow`/`bg-opacity-*`/bare-`ring`/uncoloured-`border` usages, so nothing regressed silently. The 5 `focus:outline-none` were removed in favour of the theme's single global `:focus-visible` ring.
+- **House design system.** [src/app/theme/](../src/app/theme/) — `tokens.css` and `tailwind-bridge.css` copied verbatim from `skytutor-agent`, plus a local `notam-viz.css` overriding only `--accent*` and `--type-*`. Fonts are Fraunces / Assistant / Chivo Mono via `next/font/google`. `themeColor` is now `#f5f1e7` in [layout.tsx](../src/app/layout.tsx), [manifest.webmanifest](../public/manifest.webmanifest) and [capacitor.config.ts](../capacitor.config.ts), which previously disagreed with the header. The half-wired `prefers-color-scheme` block is gone — the theme is light-only by design. New deps: `lucide-react`, `clsx`, `tailwind-merge`.
+- **Leaflet CSS is now layered.** `@import 'leaflet/dist/leaflet.css' layer(vendor)` with an explicit `@layer theme, base, vendor, components, utilities` declaration. In Tailwind v4 every emitted rule lives in a named layer and unlayered CSS beats all of them regardless of specificity or source order, so an unlayered Leaflet import would have won over every utility on map chrome.
+- **Basemap warmed toward chart paper.** A CSS filter on `.leaflet-tile` (per-tile, not on `.leaflet-tile-pane` — filtering the pane re-runs the pass on every pan frame). Same tile URL, same attribution, same service-worker cache.
+- **Overlapping NOTAMs are resolvable.** Leaflet delivers a click to exactly one shape (`Map._findEventTargets` walks the DOM ancestor chain; overlapping siblings are never ancestors), so a covered NOTAM was literally unclickable. Every NOTAM path is now `interactive: false` and one map-level handler runs [hit-test.ts](../src/components/map/hit-test.ts) `notamsAtPoint`, which delegates to Leaflet's own `_containsPoint` — correct for `L.Circle`'s Mercator-projected metric radius in a way a haversine test would not be, and it inherits stroke click-tolerance. 2+ hits opens [StackPicker](../src/components/map/StackPicker.tsx), which lists every NOTAM under the cursor **and** carries a prev/next stepper (arrow keys too) that walks map focus through the stack without dismissing the list — browsing drops the detail sheet to `peek` so the map and the picker both stay readable, while committing a row opens it at `half`. The card is clamped inside the map container and re-clamps on resize, since focusing a NOTAM opens the desktop panel and takes 380px off the map underneath it. Verified against live data: a click into the central cluster resolves 5 NOTAMs and stepping cycles all five.
+- **Focus auto-dims the rest.** A dedicated `notams` pane plus classList toggles (`.is-dimmed`, `.is-focused`, `.is-selected`). Focus/selection are deliberately *not* in `pathOptions`: react-leaflet's `usePathOptions` compares by reference, so the old inline object literals called `setStyle()` on all ~114 shapes on every render. A focus change now costs two classList writes and zero React re-renders.
+- **`MapView.tsx` split** into [src/components/map/](../src/components/map/) — 844 lines in one file became 9 focused modules, none over 200 lines. This was the deferred item under Technical debt; the deferral no longer applied once the click model and the detail surface both had to change inside it.
+- **All Leaflet popups removed.** They were load-bearing in a non-obvious way: `Layer._openPopup` calls `stop(e)`, setting `_stopped` on the DOM event, which suppressed the map's own click handler. Deleting them without the `interactive: false` architecture would have made every shape click select and then immediately clear. Multipoint NOTAMs also minted one full popup *per point*. A single map-level tooltip now labels the focused NOTAM.
+- **Decoded NOTAM text.** New [src/lib/notam/decode.ts](../src/lib/notam/decode.ts) produces a plain-language headline from the Q-code subject/condition (falling back to the app's category bucket, then a generic word), decodes the D-line schedule, and tokenises the E-item against an ICAO Doc 8400 contraction table. Expansions are **additive** — the original token is always what renders, with the expansion as an annotation — because a pilot cross-checking the official source has to see the same words. [NotamDetail](../src/components/detail/NotamDetail.tsx) leads with the decoded view and puts the raw NOTAM behind a collapsed toggle.
+- **Detail surface replaced the popup.** [src/components/detail/](../src/components/detail/) — a draggable bottom sheet with peek/half/full detents on mobile, a docked 380px panel at `md`. Built on Pointer Events with pointer capture; no animation library. Portaled to `document.body`, which is what keeps Leaflet out of the gesture path (it binds handlers on its own container, so a non-descendant subtree never reaches them). The desktop panel takes width off the map rather than covering it, and a `ResizeObserver` calls `invalidateSize()` so `containerPoint` maths — which the hit test runs on — never goes stale.
+- **Mobile and accessibility.** `h-screen` → `h-dvh`; the closed detail panel is `visibility: hidden` rather than only translated off-screen, so its controls leave the tab order (`aria-hidden` does not do that); new `.safe-top` utility on the fixed header (`viewportFit: 'cover'` plus a translucent status bar let the notch underlap it); `useClickOutside` switched from `mousedown` to `pointerdown`; panel gesture guards switched from mouse-only to `onPointerDown`; touch targets raised to ≥36–44px throughout; the layer panel now listens for `matchMedia` `change` instead of reading it once in a `useState` initializer. `scrollbar-thin` — a Tailwind plugin class with no plugin installed, and therefore a silent no-op since it was written — replaced with a real `@utility scrollbar-hairline`.
+- **Sidebar rows carry information.** They previously showed `notam.title`, which is the two-letter Q subject glued to the first 80 raw characters (`"MR RWY 12/30 CLSD DUE TO WIP FROM…"`). Now: NOTAM id, active dot, expiry date, and the decoded headline.
+- **Data freshness surfaced.** The API has always returned `fetchedAt` and nothing displayed it; the header now shows "updated Nh ago". The feed is a daily snapshot, so this matters.
+- **Service worker no longer pins a stale shell.** `public/sw.js` read `self.__NOTAM_SW_VERSION__`, which **nothing ever defined** — the file is served verbatim from `public/` with no substitution step, so `SHELL_CACHE` was permanently `notam-shell-dev` and the precached `/` document was never invalidated across releases. The version now rides in the registration URL (`/sw.js?v=0.7.0`) and the worker reads it back out of its own location. Without this, returning PWA and iOS users would have kept booting the old shell and never seen this release. The generic fetch handler also now populates the cache — it previously only ever read, and `SHELL_ASSETS` lists no CSS or JS, so an offline cold start served the precached HTML pointing at bundles that were never stored.
+- **Q-code table: `AR` added.** `QARLC` appears in the live feed and `AR` (ATS route) was missing from `SUBJECT_DESCRIPTIONS`, so those NOTAMs decoded to a generic fallback ("Navaid closed"). Description only — deliberately **not** added to `SUBJECT_CATEGORIES`, since changing a NOTAM's category moves it between filter buckets.
+- **Unmatched trailing paren trimmed.** The IAA feed leaves a stray `)` on most E-items, so the detail sheet read `AD CLSD DUE WIP.)`. `eItemText` now drops it only when nothing opened it, so a legitimate trailing parenthetical survives. This was item 7 under "Nice to have"; fixed in `format.ts` rather than the parser so `rawText` stays byte-identical to the source.
+- **User-location marker chrome.** `.notam-user-location-icon` was missing from the divIcon reset in `globals.css`, so the aircraft glyph had been rendering inside Leaflet's default white box with a grey border since v0.5.0.
+
+### Still deferred
+
+- **`scraper-mobile.ts` split into `src/lib/scraper/*`** — unchanged reasoning: the tests pin behaviour, but the split is a pure reorganization with no observable value. Defer until there's a second reason to touch the file.
+- **Component/UI tests.** Still none. The map's decidable logic was extracted into `hit-test.ts` (unit-tested, no jsdom needed) specifically so the untestable part is just rendering. A Playwright smoke test remains the right next step.
+
+### Found during this pass, not fixed
+
+- **`src/lib/notam/airports.ts` is substantially wrong**, in names as well as coordinates. `LLIB` is labelled Eilat but sits at 31.938 / 35.166 (that is Jerusalem; Eilat is ~29.56 / 34.96). `LLER` is labelled Megiddo at 32.527 / 34.918, while v0.6.0 added LLER to the KML as **Ramon, 29.7233 / 35.0114**. Several entries cluster implausibly around 31.9 / 35.2. This table is the last-resort geometry fallback, so affected NOTAMs pin in the wrong place. Fixing it needs a verified aerodrome source and is a data-correctness issue, not a UI one — **it needs its own issue.** The decoder deliberately shows the ICAO code from the NOTAM's own A-line rather than a name from this table, so the overhaul does not amplify the bad data.
+- **`userScalable: false` remains** in the viewport export. It is a WCAG 1.4.4 concern, but it was added deliberately in v0.5.2 to stop iOS WKWebView double-tap-zooming and rescaling text on rotation, and mobile Safari has ignored the hint since iOS 10 — so it only binds in the Capacitor shell. Left in place rather than silently reverting a deliberate fix; worth revisiting with a device in hand.
 
 ## Shipped in v0.6.0
 
@@ -140,21 +173,23 @@ Coverage matrix:
 - **Playwright runtime:** launches Chromium headless with `--disable-blink-features=AutomationControlled`, `--disable-features=IsolateOrigins,site-per-process`, and `navigator.webdriver` patched. These reduce fingerprint signal to Radware; they do not reduce local security. Chromium runs in the Node process's UID; do not run the server as root.
 - **No input from user:** `/api/notams` takes no query parameters or body. Nothing to sanitize.
 - **CORS:** default Next.js behaviour (no CORS headers). Browsers can only call it from the same origin.
-- **External content:** map tiles come from `tile.openstreetmap.org` via the URL in [src/components/MapView.tsx](../src/components/MapView.tsx). Tiles are fetched by the client, not the server.
+- **External content:** map tiles come from `tile.openstreetmap.org` via the URL in [src/components/map/MapView.tsx](../src/components/map/MapView.tsx). Tiles are fetched by the client, not the server.
 
 Not-an-issue-here:
 
 - SQL injection — no SQL.
-- XSS through `eItem` — React escapes text by default; `NotamDetail` uses `{notam.eItem}` not `dangerouslySetInnerHTML`, and popups use JSX composition.
+- XSS through `eItem` — React escapes text by default; `NotamDetail` renders decoded tokens as JSX text nodes, never `dangerouslySetInnerHTML`. The one `dangerouslySetInnerHTML` in the tree is `LayerPanel`'s reference-layer legend, fed from the hardcoded SVG strings in `aviation-icons.ts` — no user or feed input reaches it.
 - Command injection — no shell-outs.
 
 ## Technical debt
 
 Items still open, grounded in current source, ranked by maintainer-impact.
 
-### Monolithic component and scraper files — medium
+### Monolithic scraper file — medium
 
-[src/components/MapView.tsx](../src/components/MapView.tsx) is 810 lines and [src/lib/scraper-mobile.ts](../src/lib/scraper-mobile.ts) is ~450 lines after v0.4.0 edits. Planned splits (`src/components/map/*` and `src/lib/scraper/*`) were scoped in the v0.4.0 plan but intentionally deferred — the test suite pins the scraper's observable behavior but there's still no UI smoke test for the map, and a pure reorganization ships regression risk with zero user-visible value. Revisit when there's a second reason to edit these files.
+`MapView.tsx` was split in v0.7.0 (see Shipped) — the deferral stopped applying once the click model and the detail surface both had to change inside it.
+
+[src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts) is ~450 lines and the planned `src/lib/scraper/*` split is still deferred, with the original reasoning intact: the test suite pins its observable behavior, and a pure reorganization ships regression risk with zero user-visible value. Revisit when there's a second reason to edit it.
 
 ### `runPool` result array can have holes on exceptions in early workers — low
 
@@ -179,7 +214,8 @@ Remaining items, grouped by priority.
 ### High
 
 1. **Upgrade Next.js** off v14.2.35 to v15.5.10+ to close the three open CVEs (see v0.4.0 security note). Breaking-change migration; plan as a dedicated branch.
-2. **Split `MapView.tsx` and `scraper-mobile.ts`** — see the matching entry under Technical debt. Do this alongside adding UI component tests so regressions are caught.
+2. **Fix `src/lib/notam/airports.ts`** — wrong names and coordinates in the last-resort geometry fallback, so affected NOTAMs pin in the wrong place. Needs a verified aerodrome source. See "Found during this pass" under v0.7.0.
+3. **Add a Playwright smoke test.** `MapView.tsx` is split and `hit-test.ts` is unit-tested, but nothing automated exercises the rendered map. The v0.7.0 work was verified by driving Chromium by hand; that should be a committed test.
 
 ### Nice to have
 
@@ -187,7 +223,6 @@ Remaining items, grouped by priority.
 4. **Add a `/api/notams?since=<iso>` param** that only returns NOTAMs with `effective > since`, to support polling.
 5. **Persist the cookie jar to disk** so a cold restart doesn't need a fresh mint when the env var path is not in use. Trade-off: extra I/O, and the cookie is now on disk.
 6. **Replace module-scoped `cachedJar` with a real TTL cache library** if the app ever scales to multiple concurrent scrapes — current `jarMintLock` works but the ergonomics degrade.
-7. **Trim trailing `)` in the parser itself**, not in the popup formatter — the stray closing paren is currently cleaned by `trimTrailingParen` in `MapView.tsx`. Fixing it at parse time means any future consumer and `rawText` comparisons all see the same thing.
 8. **Tighten `.env.local.example`** — include the full cookie-name list from [docs/SCRAPING.md](SCRAPING.md) or just say "paste the whole Cookie header verbatim".
 9. **Harden self-intersection detection** to also downgrade to multipoint when the polygon's bounding box is implausibly large (e.g. > 5° × 5° for an Israeli NOTAM).
 

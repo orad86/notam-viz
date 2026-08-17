@@ -58,7 +58,7 @@ For the high-level orientation map (where do new files go?), see [STRUCTURE.md](
                           Vercel KV (Upstash)
                                 │
                                 ▼
-              ParsedNotam[] → MapView + NotamList + filters + route
+              ParsedNotam[] → MapView + NotamList + DetailSurface + filters + route
 ```
 
 **Deployment shape.** Standard Next.js 14 on Vercel. The API route is `runtime = 'nodejs'`; it reads request headers for per-IP rate-limiting so it's fully dynamic — ISR is not in play. All CDN caching is driven by `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. The scraper runs in GitHub Actions, not in the Vercel function — so Vercel deployments don't need Playwright or Chromium.
@@ -110,7 +110,8 @@ Next.js App Router. Client entry point plus the one API route.
 - [src/app/layout.tsx](../src/app/layout.tsx) — root layout, Inter font, `<title>NOTAM Visualizer</title>`.
 - [src/app/page.tsx](../src/app/page.tsx) — server component. Reads `TERMS.md` and `PRIVACY.md` from the repo root and passes them to the client `HomePage` so the in-app legal modal has content without a separate route or markdown runtime dep.
 - [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) — `runtime = 'nodejs'` (dynamic — reads headers for rate-limiting). Reads KV via `getLatestNotams()`; rate-limits via `checkRateLimit` from [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts); emits structured logs via [src/lib/server/log.ts](../src/lib/server/log.ts).
-- [src/app/globals.css](../src/app/globals.css) — Tailwind base + Leaflet/divIcon/aviation-label overrides.
+- [src/app/globals.css](../src/app/globals.css) — the CSS entry point. Import order is load-bearing: the explicit `@layer theme, base, vendor, components, utilities` declaration, then `tailwindcss`, then Leaflet into `layer(vendor)`, then tokens → bridge → app layer last so its `--accent*` override wins. Also holds the Leaflet chrome restyle, the basemap tile filter, and the `.notam-pane` focus/dim/selection rules.
+- [src/app/theme/](../src/app/theme/) — design tokens. `tokens.css` and `tailwind-bridge.css` are copied verbatim from `skytutor-agent`; `notam-viz.css` is the only file allowed to diverge, and only for `--accent*` and `--type-*`.
 
 ### `src/lib/notam/`
 
@@ -121,7 +122,7 @@ NOTAM-domain logic. Pure TypeScript, no React, no DOM, no Node-specific APIs.
 - [src/lib/notam/qcodes.ts](../src/lib/notam/qcodes.ts) — single owner of ICAO Q-code reference data and decoding. Three module-private tables (`SUBJECT_CATEGORIES`, `SUBJECT_DESCRIPTIONS`, `CONDITION_DESCRIPTIONS`) plus `getCategoryFromQCode`, `getCategoryFromQLine`, `decodeQCode`, `formatQCodeExplanation`, and the `QCodeParts` type.
 - [src/lib/notam/airports.ts](../src/lib/notam/airports.ts) — hard-coded ICAO aerodrome/FIR lookup (Israel). `AIRPORT_COORDINATES` map plus `getAirportCoords`.
 - [src/lib/notam/format.ts](../src/lib/notam/format.ts) — display helpers: `formatUtcDate`, `eItemText`, `formatAltitudeRange`, `formatScope`, `formatTraffic`, `getCategoryColor`, `FIR_SCALE_RADIUS_NM`.
-- [src/lib/notam/geometry.ts](../src/lib/notam/geometry.ts) — pure NOTAM-geometry math. Currently `bboxArea(n)`, used by MapView to sort polygons largest-first so big areas render under smaller ones.
+- [src/lib/notam/geometry.ts](../src/lib/notam/geometry.ts) — pure NOTAM-geometry math. Currently `bboxArea(n)`, used by MapView to sort shapes largest-first so big areas render under smaller ones — which is also the paint order the hit test reverses to answer "topmost first".
 - [src/lib/notam/altitude.ts](../src/lib/notam/altitude.ts) — `parseAltitudeFt` for user input (`FL080`, `5500ft`, `SFC`, `UNL`) + `parseQLineAltitudeFt` for ICAO Q-line 3-digit codes (`005` → 500 ft, `999` → Infinity) + `altitudeBandFt`.
 - [src/lib/notam/route-filter.ts](../src/lib/notam/route-filter.ts) — route planning: `RoutePoint`, `Route`, `TimeWindow`, `buildRoutePointIndex`, `resolveRouteTokens`, `parseRouteInput`, `haversineNm`, `pointToRouteDistanceNm`, `notamOverlapsWindow`, `notamMatchesRoute`, `buildCorridorPolygon`. `ROUTE_BUFFER_KM = 1`.
 
@@ -170,13 +171,22 @@ Custom React hooks. `useThing.ts` (camelCase) per project convention.
 
 All `'use client'`.
 
-- [src/components/MapView.tsx](../src/components/MapView.tsx) — Leaflet map. Renders NOTAM geometry (circle / polygon / multipoint / point) with z-order sort, popups, route polyline + 1 km corridor polygon or single-point 1 km circle, KML reference layers, and the layer panel (NOTAM + reference toggles). `FIR_SCALE_RADIUS_NM = 150` NM — big circles render as center dots instead of opaque fills. Background click and ESC clear the selection. All NOTAM shapes share one set of style constants at the top of the file (`NOTAM_COLOR`, `NOTAM_SELECTED_COLOR`, `NOTAM_FILL_OPACITY*`, `NOTAM_STROKE_OPACITY`, `NOTAM_WEIGHT*`, `NOTAM_SELECTED_DASH`) — category-based coloring is intentionally not applied on the map. Selection toggles a darker stroke + dashed outline + bumped fill opacity, consistently across all shape types.
+- [src/components/map/](../src/components/map/) — the Leaflet map, split across nine modules (see [STRUCTURE.md](STRUCTURE.md)).
+
+  **The click model is the thing to understand here.** Leaflet delivers a click to exactly one shape: `Map._findEventTargets` walks the DOM ancestor chain from the event target, and overlapping sibling paths are never ancestors of each other. So a NOTAM covered by another was unclickable. Every NOTAM path is therefore rendered `interactive: false`; clicks fall through to `.leaflet-container`, and [map/hit-test.ts](../src/components/map/hit-test.ts) `notamsAtPoint` tests the click against every registered layer using Leaflet's own `_containsPoint`. Zero hits clears focus, one focuses it, two or more open `StackPicker`. Do not re-introduce per-shape click handlers.
+
+  **There are no popups.** `Layer._openPopup` calls `stop(e)`, which set `_stopped` on the DOM event and suppressed the map's own click — so the old popups were silently load-bearing for click semantics. A single map-level tooltip labels the focused NOTAM instead; detail lives in `src/components/detail/`.
+
+  **Visual state is CSS, not props.** `pathOptions` are frozen module constants in [map/constants.ts](../src/components/map/constants.ts), because react-leaflet's `usePathOptions` compares them by reference — an object literal per render means `setStyle()` on all ~114 shapes every render. Focus, dimming and selection are classList toggles on a dedicated `notams` pane (`.is-dimmed`, `.is-focused`, `.is-selected`, styled in `globals.css`). Geometry colour also lives in CSS (`.notam-pane path`), so the palette stays a design token instead of a hex literal in TypeScript.
+
+  `FIR_SCALE_RADIUS_NM = 150` NM — big circles render as centre dots rather than covering the basemap, and sort to the very back of the paint order so the NOTAMs inside them stay reachable. Background click and ESC clear the selection. A `ResizeObserver` calls `invalidateSize()` when the container changes width, since the desktop detail panel shrinks the map and stale `containerPoint` maths would misdirect the hit test.
+- [src/components/detail/](../src/components/detail/) — NOTAM detail. `DetailSurface` picks one of two shells: a draggable bottom sheet with peek/half/full detents below `md`, a docked 380px panel at and above it. `useDragSheet` implements the drag on Pointer Events with pointer capture (no animation library). `NotamDetail` is the shared body and renders the decoded view first, with the raw NOTAM behind a collapsed toggle. Portaled to `document.body` — Leaflet binds its gesture handlers on its own container, so a non-descendant subtree never feeds it stray drags.
 - [src/components/NotamList.tsx](../src/components/NotamList.tsx) — sidebar; fixed on desktop, slide-in drawer on mobile. Displays one-line rows (category dot · ID · active dot · title). Takes the already-filtered list as a prop.
 - [src/components/NotamFilterBar.tsx](../src/components/NotamFilterBar.tsx) — sticky filter bar: search with count, 🕐 time-window pill, ⬇ export pill, ⇅ sort popover, category chips, Clear filters link.
 - [src/components/RouteInput.tsx](../src/components/RouteInput.tsx) — route planner: autocomplete over all four KML indices (airports / navaids / VFR / IFR), tokens rendered as pills, altitude input. Collapsible disclosure in the sidebar.
 - [src/components/KmlLayer.tsx](../src/components/KmlLayer.tsx) — React-Leaflet LayerGroup that fetches one KML, parses it via `loadKmlPoints`, renders each point as a Marker with `divIcon` (aviation symbol) and a permanent Tooltip (name label).
 - [src/components/ExportMenu.tsx](../src/components/ExportMenu.tsx) — dropdown (PDF / GPX / KML). Props: `notams: ParsedNotam[]`, `variant: 'pill' | 'compact'`.
-- [src/components/SelectionToolbar.tsx](../src/components/SelectionToolbar.tsx) — map overlay that appears only when `selectedIds.size > 0`. Shows count + Clear.
+- [src/components/map/SelectionToolbar.tsx](../src/components/map/SelectionToolbar.tsx) — map overlay that appears only when `selectedIds.size > 0`. Shows count + Clear.
 - [src/components/HomePage.tsx](../src/components/HomePage.tsx) — `'use client'` root for the map page. Orchestrates filter + route + selection + disclaimer + legal-modal state, loads KML indices, fetches `/api/notams`, renders header + `NotamList` + `NotamFilterBar` + `RouteInput` + `MapView` + `DisclaimerModal` + `LegalModal`. Takes the two legal markdown strings as props from the server page.
 - [src/components/LegalModal.tsx](../src/components/LegalModal.tsx) — overlay dialog that renders a markdown string via the shared `renderMarkdown`. Esc, backdrop click, and close button dismiss it. Triggered from the sidebar footer or from inside `DisclaimerModal`. z-index `z-[10030]` so it stacks above the disclaimer.
 - [src/components/DisclaimerModal.tsx](../src/components/DisclaimerModal.tsx) — startup disclaimer; shown on every launch, requires explicit Accept to dismiss (no Esc / backdrop dismissal, no localStorage gate). Footer row exposes `APP_VERSION` and inline Terms / Privacy buttons that call into the same `setLegalDoc` setter as the sidebar footer. z-index `z-[10020]`.
@@ -213,7 +223,7 @@ See [docs/TESTING.md](TESTING.md) for the coverage matrix and conventions.
 1. `HomePage` mounts client-side (rendered by the server `src/app/page.tsx`, which also provides the legal markdown strings), sets `loading=true`, calls `fetch('/api/notams')`. `MapView` is lazy-imported via `next/dynamic({ ssr: false })` because Leaflet touches `window`.
 2. `useNotamFilter(notams)` produces `filtered` (search + category + active-only + time-window + sort applied). If a route is set, a second pass via `notamMatchesRoute` narrows to the route corridor and altitude band → `finalList`.
 3. `finalList` is passed to both `NotamList` (rows) and `MapView` (geometry). The filter bar pill (⬇ N) receives `notamsForExport`, which equals the selected NOTAMs when any are checked in the list/map, otherwise falls back to `finalList`.
-4. When the user focuses a NOTAM (list click or shape click), `MapController` in `MapView` flies/fits the map to the geometry and programmatically opens the popup via a ref map keyed by notam id.
-5. Selection multi-state (`selectedIds: Set<string>`) is lifted to `HomePage`; shift-click on the map, click checkbox in popup, or click checkbox in list row all feed the same Set. Selection drives Export scope (see step 3) but is orthogonal to the filtered view.
+4. When the user focuses a NOTAM (list click, shape click, or a pick from `StackPicker`), `MapController` calls `flyToBounds` on the geometry — with padding for whichever chrome is covering the map, so the shape lands clear of the bottom sheet or the side panel — and `DetailSurface` opens.
+5. Selection multi-state (`selectedIds: Set<string>`) is lifted to `HomePage`; modifier-click on the map, the button in the detail sheet, or the checkbox in a list row all feed the same Set. The detail-sheet button exists because modifier-click is unreachable on touch. Selection drives Export scope (see step 3) but is orthogonal to the filtered view.
 
 No global state library. Filter, route, selection, and legal-modal state all live in `HomePage` and flow through props.

@@ -1,98 +1,213 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Layer order is fixed by the FIRST @layer statement in the sheet, so declare
+   it explicitly rather than letting import order decide it.
+   `vendor` sits after `base` so Leaflet's own resets beat preflight, and before
+   `components`/`utilities` so our classes beat Leaflet.
 
-@import 'leaflet/dist/leaflet.css';
+   Leaflet MUST be layered. Tailwind v4 puts every rule it emits in a named
+   layer, and unlayered CSS beats all named layers regardless of specificity or
+   source order — so a plain @import would let `.leaflet-tooltip { padding: 6px }`
+   win over `p-1` on any map element. */
+@layer theme, base, vendor, components, utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css' layer(vendor);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Order is load-bearing: raw tokens, then the v4 bridge that maps them into
+   Tailwind's namespaces, then the app layer LAST so its --accent* override
+   wins. The bridge uses `@theme inline`, so utilities resolve through to the
+   custom property rather than snapshotting a copy. */
+@import './theme/tokens.css';
+@import './theme/tailwind-bridge.css';
+@import './theme/notam-viz.css';
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  margin: 0;
-  padding: 0;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  /* Stop iOS from bumping text size on rotation and from double-tap zoom
-     outside of Leaflet. The map handles its own pinch/zoom. */
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  touch-action: manipulation;
-}
-
-#__next {
-  width: 100%;
-  height: 100%;
-}
-
-/* Leaflet overrides */
-.leaflet-container {
-  font: 12px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
-}
-
-.leaflet-popup {
-  font-size: 12px;
-}
-
-.leaflet-control {
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
-}
-
-/* Aviation-icon divIcons: strip default Leaflet divIcon chrome */
-.leaflet-div-icon.aviation-icon,
-.aviation-icon {
-  background: transparent;
-  border: none;
-}
-
-/* Permanent label under each aviation symbol */
-.leaflet-tooltip.aviation-label {
-  background: rgba(255, 255, 255, 0.85);
-  border: 0;
-  box-shadow: none;
-  padding: 0 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9px;
-  font-weight: 600;
-  color: #1f2937;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.leaflet-tooltip.aviation-label::before {
-  display: none;
-}
-
-@layer utilities {
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .line-clamp-2 {
+@layer base {
+  /* The map owns the whole viewport; nothing outside it should ever scroll.
+     -webkit-text-size-adjust stops iOS resizing text on rotation, and
+     touch-action removes the 300ms double-tap delay (and its zoom side
+     effect) outside Leaflet, which handles its own pinch/zoom. */
+  html,
+  body {
+    width: 100%;
+    height: 100%;
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+}
+
+/* ── Leaflet chrome, restyled onto the house tokens ────────────────────── */
+
+@layer components {
+  /* Leaflet hardcodes its own font stack; without this the map is the one
+     region of the app not speaking the house typeface. */
+  .leaflet-container {
+    font-family: var(--type-body);
+    font-size: var(--fs-xs);
+    line-height: var(--lh-snug);
+    background: var(--paper-sunk);
+  }
+
+  /* Warm the OSM raster toward chart paper. Stock tiles are saturated blue and
+     green, which fights the palette and — worse — puts red roads at the same
+     visual weight as a NOTAM boundary. Desaturating buys back that contrast
+     without changing tile provider, attribution, or the service-worker cache.
+
+     Applied per-tile, NOT to .leaflet-tile-pane: filtering the pane re-runs the
+     whole filter pass on every pan frame, whereas filtering each <img> bakes it
+     once at paint and Leaflet then only translate3d's the result. Noticeably
+     cheaper in the iOS WKWebView. */
+  .leaflet-tile {
+    filter: sepia(0.22) saturate(0.85) hue-rotate(-8deg) brightness(1.04)
+      contrast(0.95);
+  }
+
+  /* Focus and selection state live in CSS classes on a dedicated `notams` pane,
+     not in React props.
+     react-leaflet's usePathOptions compares pathOptions BY REFERENCE, so any
+     inline object literal makes it call setStyle() on all ~114 shapes on every
+     render. Keeping pathOptions frozen and driving visuals through classList
+     means a focus change costs two classList writes and zero React re-renders.
+
+     SVG `opacity` on a <path> multiplies stroke- and fill-opacity together,
+     which is exactly the dim we want, and it composites on the GPU so the
+     transition is free. A dedicated pane (rather than .leaflet-overlay-pane)
+     keeps the route corridor and its markers out of the dimming. */
+  /* The NOTAM palette lives here rather than in pathOptions so the hue stays a
+     token instead of a hex literal in TypeScript. Presentation attributes (what
+     Leaflet writes) have zero specificity, so these win. --danger, not --accent:
+     the accent marks what is ACTIVE, this marks a hazard. */
+  .notam-pane path {
+    stroke: var(--danger);
+    fill: var(--danger);
+    transition:
+      opacity var(--dur-base) var(--curve-out),
+      stroke-width var(--dur-fast) var(--curve-out);
+  }
+
+  .notam-pane.is-dimmed path {
+    opacity: 0.12;
+  }
+
+  .notam-pane path.is-focused {
+    opacity: 1;
+    stroke-width: 4;
+  }
+
+  .notam-pane path.is-selected {
+    opacity: 1;
+    stroke: var(--accent-strong);
+    stroke-width: 5;
+    stroke-dasharray: 6 4;
+  }
+
+  .leaflet-control {
+    background: var(--paper-raised);
+    border-radius: var(--corner-sm);
+    box-shadow: var(--elev-sm);
+  }
+
+  .leaflet-bar a,
+  .leaflet-bar a:hover {
+    background: var(--paper-raised);
+    color: var(--ink-2);
+    border-bottom-color: var(--rule);
+  }
+
+  .leaflet-bar a:hover {
+    background: var(--paper-sunk);
+    color: var(--ink);
+  }
+
+  .leaflet-control-attribution {
+    background: color-mix(in oklab, var(--paper-raised) 85%, transparent);
+    color: var(--ink-3);
+    font-size: var(--fs-2xs);
+  }
+
+  .leaflet-control-attribution a {
+    color: var(--nav);
+  }
+
+  /* Strip Leaflet's default divIcon chrome (a white box with a grey border).
+     The user-location marker was missing from this list, so the aircraft glyph
+     has been rendering inside that box since v0.5.0. */
+  .leaflet-div-icon.aviation-icon,
+  .aviation-icon,
+  .notam-user-location-icon {
+    background: transparent;
+    border: none;
+  }
+
+  /* Permanent label under each aviation symbol */
+  .leaflet-tooltip.aviation-label {
+    background: color-mix(in oklab, var(--paper-raised) 85%, transparent);
+    border: 0;
+    box-shadow: none;
+    padding: 0 3px;
+    font-family: var(--type-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .leaflet-tooltip.aviation-label::before {
+    display: none;
+  }
+
+  /* NOTAM id tag — all that survives of the old popup. The detail sheet
+     carries the content now; this only answers "what did I just tap". */
+  .leaflet-tooltip.notam-tag {
+    background: var(--ink);
+    color: var(--ink-inverse);
+    border: 0;
+    box-shadow: var(--elev-sm);
+    padding: 1px 5px;
+    border-radius: var(--corner-xs);
+    font-family: var(--type-mono);
+    font-size: var(--fs-2xs);
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .leaflet-tooltip.notam-tag::before {
+    display: none;
+  }
+}
+
+/* ── App utilities ─────────────────────────────────────────────────────── */
+
+/* viewportFit: 'cover' + a translucent status bar means the notch and the home
+   indicator overlap fixed chrome unless we pad for them explicitly. */
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* The category chip row scrolls horizontally; the default bar is a heavy grey
+   slab against warm paper. (`scrollbar-thin` used to be here as a Tailwind
+   plugin class with no plugin installed — it was a silent no-op.) */
+@utility scrollbar-hairline {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--rule-strong);
+    border-radius: var(--corner-pill);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

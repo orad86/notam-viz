@@ -18,7 +18,11 @@ ios/        Capacitor iOS shell (the iOS app). Decoupled from the web build.
 ```
 src/
 ├── app/            Next.js App Router routes (page.tsx, layout.tsx, api/notams/route.ts, …).
+│   └── theme/      Design tokens. tokens.css + tailwind-bridge.css are copied
+│                   VERBATIM from skytutor-agent; only notam-viz.css may diverge.
 ├── components/     React UI components (PascalCase.tsx, all client-side).
+│   ├── map/        Leaflet map. See docs/ARCHITECTURE.md for the click model.
+│   └── detail/     NOTAM detail: bottom sheet on mobile, docked panel at md.
 ├── hooks/          Custom React hooks (useThing.ts, camelCase).
 ├── lib/            Non-React logic. Three domains: notam/, export/, server/.
 └── types/          Shared TypeScript types (notam.ts).
@@ -35,6 +39,7 @@ src/lib/
 │   ├── altitude.ts         User-input and Q-line altitude parsing.
 │   ├── airports.ts         Israeli airport / FIR coordinate lookup.
 │   ├── format.ts           Display formatters (date, altitude range, scope, …).
+│   ├── decode.ts           Plain-language decoding: headline + ICAO contractions.
 │   ├── geometry.ts         Pure NOTAM-geometry math (bbox area, …).
 │   └── route-filter.ts     Route corridor + altitude band matching.
 ├── export/         Selection → file-format builders.
@@ -50,13 +55,29 @@ src/lib/
     └── scraper-mobile.ts   Playwright-driven IAA mobile scraper (run by scripts/scrape.ts in CI).
 ```
 
-Top-level files in `src/lib/` (no domain home): `aviation-icons.ts`, `kml-layer.ts` (browser-side KML fetch), `render-markdown.tsx`, `version.ts`.
+Top-level files in `src/lib/` (no domain home): `aviation-icons.ts`, `cn.ts` (the `clsx` + `tailwind-merge` helper), `kml-layer.ts` (browser-side KML fetch), `render-markdown.tsx`, `version.ts`.
+
+## `src/components/map/` tree
+
+```
+map/
+├── MapView.tsx         Container, panes, layer composition.
+├── NotamShapes.tsx     The four geometry renderers. All non-interactive.
+├── MapInteractions.tsx Map-level click, focus highlight, fly-to, focus label.
+├── hit-test.ts         notamsAtPoint / pathElements. Pure, unit-tested.
+├── LayerPanel.tsx      Geometry + reference layer toggles.
+├── StackPicker.tsx     Disambiguation list for overlapping NOTAMs.
+├── SelectionToolbar.tsx
+├── constants.ts        Frozen pathOptions, pane name, layer metadata.
+└── leaflet-setup.ts    Typed lazy `require('leaflet')`.
+```
 
 ## `tests/` tree
 
 ```
 tests/
 ├── fixtures/       Real HTML / NOTAM blocks captured from past scrapes.
+├── map/            Mirrors src/components/map/. (Pure modules only — no UI tests.)
 ├── notam/          Mirrors src/lib/notam/.
 └── server/         Mirrors src/lib/server/. (Currently scraper validators only.)
 ```

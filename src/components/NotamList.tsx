@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ParsedNotam } from '@/types/notam';
-import { getCategoryColor } from '@/lib/notam/format';
+import { decodeNotam } from '@/lib/notam/decode';
 import { APP_VERSION } from '@/lib/version';
+import { cn } from '@/lib/cn';
 
 interface NotamListProps {
   filtered: ParsedNotam[];
@@ -21,6 +22,70 @@ interface NotamListProps {
   routeBanner?: React.ReactNode;
   focusedHiddenHint?: React.ReactNode;
   onOpenLegal: (doc: 'terms' | 'privacy') => void;
+}
+
+interface RowProps {
+  notam: ParsedNotam;
+  isMember: boolean;
+  isFocused: boolean;
+  onSelect: () => void;
+  onToggle: () => void;
+  rowRef: (el: HTMLDivElement | null) => void;
+}
+
+function Row({ notam, isMember, isFocused, onSelect, onToggle, rowRef }: RowProps) {
+  // The old row showed `notam.title`, which is the two-letter Q subject glued to
+  // the first 80 raw characters ("MR RWY 12/30 CLSD DUE TO WIP FROM..."). The
+  // decoded headline says the same thing in words.
+  const decoded = useMemo(() => decodeNotam(notam), [notam]);
+
+  return (
+    <div
+      ref={rowRef}
+      className={cn(
+        'relative flex cursor-pointer items-start gap-2.5 border-b border-rule px-3 py-2.5 transition-colors',
+        isFocused ? 'bg-accent-wash' : 'hover:bg-paper-sunk',
+      )}
+      onClick={onSelect}
+    >
+      {isFocused && (
+        <span
+          aria-hidden
+          className="absolute inset-y-0 start-0 w-0.5 bg-accent"
+        />
+      )}
+
+      <input
+        type="checkbox"
+        checked={isMember}
+        onChange={onToggle}
+        onClick={(e) => e.stopPropagation()}
+        className="mt-0.5 size-4 shrink-0 accent-[--accent-strong]"
+        aria-label={`Select ${notam.notamId}`}
+      />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-2xs font-medium text-ink-2">
+            {notam.notamId}
+          </span>
+          {notam.isActive && (
+            <span
+              className="size-1.5 shrink-0 rounded-pill bg-ok"
+              title="Active"
+              aria-label="Active"
+            />
+          )}
+          <span className="ms-auto shrink-0 font-mono text-2xs text-ink-3 tabular-nums">
+            {decoded.when.isPerm ? 'PERM' : decoded.when.to.slice(0, 10)}
+          </span>
+        </div>
+        <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-ink">
+          {decoded.headline}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function NotamList({
@@ -56,33 +121,35 @@ export default function NotamList({
     <>
       {isOpen && (
         <div
-          className="md:hidden fixed inset-x-0 bottom-0 top-12 bg-black/30 z-[9000]"
+          className="fixed inset-x-0 bottom-0 top-12 z-[9000] bg-paper-overlay md:hidden"
           onClick={onClose}
           aria-hidden
         />
       )}
 
       <aside
+        // dvh tracks the mobile browser chrome collapsing; vh does not.
         style={{ height: 'calc(100dvh - 3rem)' }}
-        className={`bg-white border-r border-gray-200 flex flex-col
-          fixed z-[9999] left-0 top-12
-          w-[85%] max-w-sm md:w-80 md:max-w-none
-          shadow-xl md:shadow-none
-          transform transition-transform duration-200
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
+        className={cn(
+          'fixed start-0 top-12 z-[9999] flex w-[85%] max-w-sm flex-col',
+          'border-e border-rule bg-paper-raised shadow-lg',
+          'transform transition-transform duration-200 ease-out',
+          'md:w-80 md:max-w-none md:shadow-none',
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        )}
       >
         {routeInput}
         {filterBar}
 
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-200 text-xs">
-            <span className="font-semibold text-blue-800 tabular-nums">
+          <div className="flex items-center gap-2 border-b border-accent/30 bg-accent-wash px-3 py-2">
+            <span className="font-mono text-2xs font-medium text-accent-text tabular-nums">
               {selectedIds.size} selected
             </span>
             <button
               type="button"
               onClick={onClear}
-              className="text-blue-700 hover:underline ml-auto"
+              className="ms-auto rounded-xs px-2 py-1 text-2xs font-medium text-accent-text transition-colors hover:bg-paper-raised"
             >
               Clear
             </button>
@@ -92,102 +159,62 @@ export default function NotamList({
         {routeBanner}
         {focusedHiddenHint}
 
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="divide-y divide-gray-100">
-            {totalCount === 0 ? (
-              <div className="text-xs text-gray-500 text-center py-6">
-                No NOTAMs loaded
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-xs text-gray-500 text-center py-6">
-                No NOTAMs match current filters
-              </div>
-            ) : (
-              filtered.map((notam) => {
-                const isMember = selectedIds.has(notam.id);
-                const isFocused = selectedNotam?.id === notam.id;
-                const dotColor = getCategoryColor(notam.category);
-                return (
-                  <div
-                    key={notam.id}
-                    ref={(el) => {
-                      rowRefs.current.set(notam.id, el);
-                    }}
-                    className={`relative flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-                      isFocused
-                        ? 'bg-blue-100'
-                        : isMember
-                          ? 'bg-blue-50'
-                          : 'hover:bg-gray-50'
-                    }`}
-                    onClick={() => {
-                      onSelectNotam(notam);
-                      onClose();
-                    }}
-                  >
-                    {isFocused && (
-                      <span
-                        aria-hidden
-                        className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"
-                      />
-                    )}
-                    <input
-                      type="checkbox"
-                      checked={isMember}
-                      onChange={() => onToggleSelect(notam.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="accent-blue-600 shrink-0"
-                      aria-label={`Select ${notam.notamId}`}
-                    />
-                    <span
-                      className="inline-block w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: dotColor }}
-                      title={notam.category}
-                    />
-                    <span className="font-mono font-semibold text-[11px] text-gray-900 shrink-0">
-                      {notam.id}
-                    </span>
-                    {notam.isActive && (
-                      <span
-                        className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"
-                        title="Active"
-                        aria-label="Active"
-                      />
-                    )}
-                    <span className="text-[11px] text-gray-600 truncate flex-1 min-w-0">
-                      {notam.title}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hairline">
+          {totalCount === 0 ? (
+            <p className="px-6 py-10 text-center text-xs text-ink-3">
+              No NOTAMs loaded.
+            </p>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+              <p className="font-display text-sm text-ink">Nothing matches</p>
+              <p className="text-xs text-ink-3">
+                No NOTAMs match the current filters.
+              </p>
+            </div>
+          ) : (
+            filtered.map((notam) => (
+              <Row
+                key={notam.id}
+                notam={notam}
+                isMember={selectedIds.has(notam.id)}
+                isFocused={selectedNotam?.id === notam.id}
+                onSelect={() => {
+                  onSelectNotam(notam);
+                  onClose();
+                }}
+                onToggle={() => onToggleSelect(notam.id)}
+                rowRef={(el) => {
+                  rowRefs.current.set(notam.id, el);
+                }}
+              />
+            ))
+          )}
         </div>
 
-        <div className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-500 flex items-center justify-between gap-2 safe-bottom">
-          <span className="tabular-nums">v{APP_VERSION}</span>
-          <span className="flex items-center gap-2">
+        <div className="safe-bottom flex shrink-0 items-center justify-between gap-2 border-t border-rule px-3 py-2">
+          <span className="font-mono text-2xs text-ink-3 tabular-nums">
+            v{APP_VERSION}
+          </span>
+          <span className="flex items-center gap-1 text-2xs text-ink-3">
             <a
               href="/support"
               target="_blank"
               rel="noreferrer"
-              className="hover:text-blue-600 hover:underline"
+              className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Support
             </a>
-            <span aria-hidden>·</span>
             <button
               type="button"
               onClick={() => onOpenLegal('terms')}
-              className="hover:text-blue-600 hover:underline"
+              className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Terms
             </button>
-            <span aria-hidden>·</span>
             <button
               type="button"
               onClick={() => onOpenLegal('privacy')}
-              className="hover:text-blue-600 hover:underline"
+              className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Privacy
             </button>

@@ -1,0 +1,33 @@
+/**
+ * APP LAYER — notam-viz's identity within the house style.
+ *
+ * This is the ONLY file that may diverge from the shared design system. The
+ * house contract permits exactly two override groups: --accent* and --type-*.
+ * Anything a surface needs beyond that belongs in the house layer, not here.
+ *
+ * Loaded AFTER tokens.css, and the bridge uses `@theme inline`, so every
+ * Tailwind utility picks these up automatically.
+ */
+
+:root {
+  /* notam-viz keeps the house aviation orange unchanged. Contrast against
+     --paper: accent-text 5.2:1, accent-strong 5.5:1 under a white label.
+     Both already clear AA, so nothing here needs re-measuring.
+
+     Note the division of labour on this app's map: --accent marks whatever is
+     ACTIVE (focus, selection, current filter), while NOTAM geometry itself
+     draws in --danger. Two warm hues doing two different jobs — "this is the
+     one you picked" vs "this is a hazard" — instead of red meaning both. */
+  --accent: #c1521f;
+  --accent-text: #a8461a;
+  --accent-strong: #b0491a;
+  --accent-wash: #c1521f14;
+
+  /* Bound by next/font in src/app/layout.tsx. Frank Ruhl Libre is deliberately
+     omitted: NOTAM payloads are ICAO English and Assistant already carries
+     Hebrew for the few UI strings that need it, so the second serif would load
+     for nothing. */
+  --type-display: var(--font-fraunces), Georgia, serif;
+  --type-body: var(--font-assistant), system-ui, sans-serif;
+  --type-mono: var(--font-chivo-mono), ui-monospace, Menlo, monospace;
+}
