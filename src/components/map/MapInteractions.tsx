@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
 import type { LatLngBoundsExpression, LatLngTuple } from 'leaflet';
 import { ParsedNotam } from '@/types/notam';
@@ -78,12 +78,26 @@ export function useInvalidateOnResize(): void {
   }, [map]);
 }
 
-/** Creates the dedicated NOTAM pane once, imperatively. */
+/**
+ * Creates the dedicated NOTAM pane.
+ *
+ * DURING RENDER, not in an effect. react-leaflet adds each shape's layer inside
+ * that shape's own effect, and React runs child effects BEFORE the parent's — so
+ * an effect here creates the pane too late, every shape falls back to the
+ * default overlay pane, and none of the `.notam-pane` styling (colour, dimming,
+ * focus, selection) matches anything.
+ *
+ * This shipped broken in v0.7.0 because dev masked it: StrictMode double-invokes
+ * effects, so the pane existed by the second pass and localhost looked correct
+ * while production had 128 paths in the wrong pane. Verify map work against
+ * `next build && next start`, not `next dev`.
+ *
+ * The body is idempotent (getPane-or-create, and both writes are assignments),
+ * so re-running it on a re-render is harmless.
+ */
 export function useNotamPane(): void {
   const map = useMap();
-  useEffect(() => {
-    // react-leaflet's <Pane> throws on a duplicate name, and reactStrictMode is
-    // on, so effects double-invoke in dev. getPane-or-create sidesteps it.
+  useMemo(() => {
     const pane = map.getPane(NOTAM_PANE) ?? map.createPane(NOTAM_PANE);
     pane.style.zIndex = String(NOTAM_PANE_Z);
     pane.classList.add('notam-pane');

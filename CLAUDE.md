@@ -34,6 +34,8 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 `src/components/map/` (was one 844-line `MapView.tsx`).
 
 - **Every NOTAM path is `interactive: false`.** Leaflet delivers a click to exactly one shape — it walks the DOM ancestor chain, and overlapping siblings are never ancestors — so per-shape handlers cannot resolve a stack. All clicks land on the map and `hit-test.ts` answers them via Leaflet's own `_containsPoint`. Do not re-add per-shape click handlers.
+- **`pane`, `interactive` and `className` must be TOP-LEVEL props on the react-leaflet component**, never inside `pathOptions`. They are creation-time options; `setStyle()` cannot change them, and `pathOptions` is all react-leaflet passes to `setStyle`. Use the `SHAPE_PROPS` constant. Getting this wrong silently puts every shape in the default overlay pane — that shipped in v0.7.0.
+- **Verify map changes against `next build && next start`, not `next dev`.** StrictMode double-invokes effects in dev, which masks Leaflet pane and layer-ordering bugs entirely.
 - **Do not put focus or selection state in `pathOptions`.** react-leaflet compares those by reference, so an object literal built during render calls `setStyle()` on all ~114 shapes every render. Visual state is classList on the `notams` pane (`.is-dimmed`, `.is-focused`, `.is-selected`).
 - There are **no Leaflet popups**. Their `_openPopup` used to call `stop(e)`, which suppressed the map click — removing them without the above architecture makes every shape click select and instantly clear.
 - Detail lives in `src/components/detail/` (bottom sheet on mobile, docked panel at `md`), portaled to `document.body` so Leaflet's gesture handlers never see it.

@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.2](#shipped-in-v072)
 - [Shipped in v0.7.1](#shipped-in-v071)
 - [Shipped in v0.7.0](#shipped-in-v070)
 - [Shipped in v0.6.0](#shipped-in-v060)
@@ -13,6 +14,12 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.2
+
+- **NOTAM shapes were rendering in the wrong Leaflet pane.** v0.7.0 put `pane`, `interactive` and `className` inside `pathOptions`, but those are creation-time options read by Leaflet's constructor and `Renderer._initPath` — `setStyle()` cannot change them, and `pathOptions` is the only thing react-leaflet feeds to `setStyle`. Leaflet therefore never saw them, and all 128 shapes landed in the default overlay pane: drawn Leaflet blue instead of `--danger`, still interactive, and completely untouched by the `.notam-pane` focus/dim/selection rules. **Auto-dim did nothing in production.** They are now spread as top-level props (`SHAPE_PROPS` in `map/constants.ts`). Separately, `useNotamPane` created the pane in an effect, which runs *after* the child layers' effects — it now runs during render. Closes #54.
+
+  **This was verified against `next dev` and that is why it shipped.** React StrictMode double-invokes effects in development, so the pane existed by the second pass and localhost looked correct while the production build was broken. Map work must be checked against `next build && next start`.
 
 ## Shipped in v0.7.1
 

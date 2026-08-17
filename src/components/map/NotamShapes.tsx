@@ -12,6 +12,7 @@ import {
   POINT_OPTIONS,
   POINT_PIXEL_RADIUS,
   POLYGON_OPTIONS,
+  SHAPE_PROPS,
 } from './constants';
 
 interface ShapeProps {
@@ -66,6 +67,7 @@ const CircleShape = memo(function CircleShape({ notam, registry }: ShapeProps) {
   if (radiusNm >= FIR_SCALE_RADIUS_NM) {
     return (
       <CircleMarker
+        {...SHAPE_PROPS}
         ref={ref as React.Ref<never>}
         center={[lat, lon]}
         radius={FIR_SCALE_PIXEL_RADIUS}
@@ -76,6 +78,7 @@ const CircleShape = memo(function CircleShape({ notam, registry }: ShapeProps) {
 
   return (
     <Circle
+      {...SHAPE_PROPS}
       ref={ref as React.Ref<never>}
       center={[lat, lon]}
       // Clamped at 200 NM so a mis-parsed radius cannot blow the projection up.
@@ -93,6 +96,7 @@ const PolygonShape = memo(function PolygonShape({ notam, registry }: ShapeProps)
 
   return (
     <Polygon
+      {...SHAPE_PROPS}
       ref={ref as React.Ref<never>}
       positions={notam.geometry.vertices}
       pathOptions={POLYGON_OPTIONS}
@@ -111,6 +115,7 @@ const MultipointPin = memo(function MultipointPin({
 
   return (
     <CircleMarker
+      {...SHAPE_PROPS}
       ref={ref as React.Ref<never>}
       center={position}
       radius={POINT_PIXEL_RADIUS}
@@ -153,6 +158,7 @@ const PointShape = memo(function PointShape({ notam, registry }: ShapeProps) {
   // symbology where a Google-style teardrop does not.
   return (
     <CircleMarker
+      {...SHAPE_PROPS}
       ref={ref as React.Ref<never>}
       center={[lat, lon]}
       radius={POINT_PIXEL_RADIUS}

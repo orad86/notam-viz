@@ -22,12 +22,6 @@ export const NOTAM_PANE_Z = 410;
  * instead of hardcoding hex in TypeScript.
  */
 const BASE: PathOptions = {
-  pane: NOTAM_PANE,
-  // Every NOTAM path is non-interactive. Leaflet delivers a click to exactly
-  // one shape (it walks the DOM ancestor chain, and overlapping siblings are
-  // never ancestors), so per-shape handlers can't disambiguate a stack. Instead
-  // all clicks fall through to the map and `hit-test.ts` resolves them.
-  interactive: false,
   weight: 2,
   opacity: 0.5,
   // Kept very low on purpose: ~95 circles overlap over central Israel, and fill
@@ -37,14 +31,31 @@ const BASE: PathOptions = {
   fillOpacity: 0.04,
 };
 
-export const CIRCLE_OPTIONS: PathOptions = { ...BASE, className: 'notam-shape' };
-export const POLYGON_OPTIONS: PathOptions = { ...BASE, className: 'notam-shape' };
-export const POINT_OPTIONS: PathOptions = {
-  ...BASE,
-  weight: 2,
-  fillOpacity: 0.9,
-  className: 'notam-shape notam-point',
-};
+export const CIRCLE_OPTIONS: PathOptions = { ...BASE };
+export const POLYGON_OPTIONS: PathOptions = { ...BASE };
+export const POINT_OPTIONS: PathOptions = { ...BASE, fillOpacity: 0.9 };
+
+/**
+ * CREATION-TIME options. Spread as TOP-LEVEL props on the react-leaflet
+ * component — never nested inside `pathOptions`.
+ *
+ * `pane`, `interactive` and `className` are read by Leaflet's constructor and
+ * by `Renderer._initPath`. `setStyle()` cannot change any of them afterwards,
+ * and `pathOptions` is the only thing react-leaflet feeds to `setStyle` — so
+ * nesting them there means Leaflet never sees them at all. That is exactly how
+ * v0.7.0 shipped: every shape in the default overlay pane, drawn Leaflet blue,
+ * still interactive, and untouched by the `.notam-pane` focus/dim rules.
+ *
+ * `interactive: false` is load-bearing, not cosmetic: Leaflet delivers a click
+ * to exactly one shape (it walks the DOM ancestor chain, and overlapping
+ * siblings are never ancestors), so per-shape handlers cannot disambiguate a
+ * stack. Every click has to reach the map for `hit-test.ts` to resolve it.
+ */
+export const SHAPE_PROPS = {
+  pane: NOTAM_PANE,
+  interactive: false,
+  className: 'notam-shape',
+} as const;
 
 /** Circles at or above this radius are drawn as a fixed-pixel dot instead. */
 export const FIR_SCALE_PIXEL_RADIUS = 6;
