@@ -6,13 +6,15 @@ const config: CapacitorConfig = {
   webDir: 'out',
   ios: {
     contentInset: 'always',
-    backgroundColor: '#0f172a',
+    // Matches --paper. The web UI paints warm paper, so a navy shell here
+    // flashes on every cold start before the webview draws.
+    backgroundColor: '#f5f1e7',
     limitsNavigationsToAppBoundDomains: false,
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 800,
-      backgroundColor: '#0f172a',
+      backgroundColor: '#f5f1e7',
       showSpinner: false,
     },
   },

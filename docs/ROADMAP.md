@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.1](#shipped-in-v071)
 - [Shipped in v0.7.0](#shipped-in-v070)
 - [Shipped in v0.6.0](#shipped-in-v060)
 - [Shipped in v0.5.0](#shipped-in-v050)
@@ -13,12 +14,18 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
 
+## Shipped in v0.7.1
+
+- **Native shell theme colour.** `public/manifest.webmanifest` (`theme_color`, `background_color`) and [capacitor.config.ts](../capacitor.config.ts) (`ios.backgroundColor`, `SplashScreen.backgroundColor`) still carried the pre-v0.7.0 navy `#0f172a`, so the PWA splash and the iOS launch screen flashed navy before the warm-paper UI painted. Both now match `--paper` (`#f5f1e7`). The v0.7.0 notes claimed this was already done; it was not. Closes #51.
+
+  Requires `npx cap sync ios` before the next iOS build for the Capacitor change to reach the Xcode project.
+
 ## Shipped in v0.7.0
 
 UI/UX overhaul: house design system, resolvable overlapping NOTAMs, decoded NOTAM text, mobile detail sheet. Closes #49.
 
 - **Tailwind 3.4 → 4.** `@tailwindcss/postcss` replaces the `tailwindcss` PostCSS plugin; `tailwind.config.ts` deleted (v4 auto-detects sources and the theme bridge replaces `theme.extend`). Migration surface was verified by grep and was small: zero `shadow-sm`/bare `shadow`/`bg-opacity-*`/bare-`ring`/uncoloured-`border` usages, so nothing regressed silently. The 5 `focus:outline-none` were removed in favour of the theme's single global `:focus-visible` ring.
-- **House design system.** [src/app/theme/](../src/app/theme/) — `tokens.css` and `tailwind-bridge.css` copied verbatim from `skytutor-agent`, plus a local `notam-viz.css` overriding only `--accent*` and `--type-*`. Fonts are Fraunces / Assistant / Chivo Mono via `next/font/google`. `themeColor` is now `#f5f1e7` in [layout.tsx](../src/app/layout.tsx), [manifest.webmanifest](../public/manifest.webmanifest) and [capacitor.config.ts](../capacitor.config.ts), which previously disagreed with the header. The half-wired `prefers-color-scheme` block is gone — the theme is light-only by design. New deps: `lucide-react`, `clsx`, `tailwind-merge`.
+- **House design system.** [src/app/theme/](../src/app/theme/) — `tokens.css` and `tailwind-bridge.css` copied verbatim from `skytutor-agent`, plus a local `notam-viz.css` overriding only `--accent*` and `--type-*`. Fonts are Fraunces / Assistant / Chivo Mono via `next/font/google`. `themeColor` is now `#f5f1e7` in [layout.tsx](../src/app/layout.tsx). (The matching values in `manifest.webmanifest` and `capacitor.config.ts` were missed here and fixed in v0.7.1.) The half-wired `prefers-color-scheme` block is gone — the theme is light-only by design. New deps: `lucide-react`, `clsx`, `tailwind-merge`.
 - **Leaflet CSS is now layered.** `@import 'leaflet/dist/leaflet.css' layer(vendor)` with an explicit `@layer theme, base, vendor, components, utilities` declaration. In Tailwind v4 every emitted rule lives in a named layer and unlayered CSS beats all of them regardless of specificity or source order, so an unlayered Leaflet import would have won over every utility on map chrome.
 - **Basemap warmed toward chart paper.** A CSS filter on `.leaflet-tile` (per-tile, not on `.leaflet-tile-pane` — filtering the pane re-runs the pass on every pan frame). Same tile URL, same attribution, same service-worker cache.
 - **Overlapping NOTAMs are resolvable.** Leaflet delivers a click to exactly one shape (`Map._findEventTargets` walks the DOM ancestor chain; overlapping siblings are never ancestors), so a covered NOTAM was literally unclickable. Every NOTAM path is now `interactive: false` and one map-level handler runs [hit-test.ts](../src/components/map/hit-test.ts) `notamsAtPoint`, which delegates to Leaflet's own `_containsPoint` — correct for `L.Circle`'s Mercator-projected metric radius in a way a haversine test would not be, and it inherits stroke click-tolerance. 2+ hits opens [StackPicker](../src/components/map/StackPicker.tsx), which lists every NOTAM under the cursor **and** carries a prev/next stepper (arrow keys too) that walks map focus through the stack without dismissing the list — browsing drops the detail sheet to `peek` so the map and the picker both stay readable, while committing a row opens it at `half`. The card is clamped inside the map container and re-clamps on resize, since focusing a NOTAM opens the desktop panel and takes 380px off the map underneath it. Verified against live data: a click into the central cluster resolves 5 NOTAMs and stepping cycles all five.
