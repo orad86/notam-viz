@@ -135,7 +135,12 @@ export default function NotamFilterBar({
 
   return (
     <div className="sticky top-0 z-10 space-y-2 border-b border-rule bg-paper-raised px-3 pb-2 pt-3">
-      <div className="flex items-center gap-1.5">
+      {/* `relative` here, not on the individual buttons: a popover wider than
+          its trigger resolves `end-0` against this row instead, so it
+          right-aligns to the sidebar rather than to a ~54px button. The time
+          popover is 240px against a 296px content box — anchored to the button
+          it hung ~30px off the left edge of the screen. */}
+      <div className="relative flex items-center gap-1.5">
         <div className="relative flex-1">
           <Search
             className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
@@ -167,7 +172,10 @@ export default function NotamFilterBar({
           )}
         </div>
 
-        <div className="relative" ref={timeRef}>
+        {/* Deliberately not `relative` — see the row above. `top` stays auto so
+            the popover still opens from its static position under the button;
+            only the horizontal edge moves out to the row. */}
+        <div ref={timeRef}>
           <button
             type="button"
             onClick={() => setTimeOpen((v) => !v)}

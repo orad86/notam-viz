@@ -102,7 +102,7 @@ export default function RouteInput({ index, route, setRoute }: Props) {
         <span className="flex items-center gap-1.5">
           <Plane className="size-3.5 text-ink-3" aria-hidden />
           <span className="plate-label">
-            Plan route{route ? ` · ${route.points.length} pts` : ''}
+            Filter by route{route ? ` · ${route.points.length} pts` : ''}
           </span>
         </span>
         {open ? (

@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.3](#shipped-in-v073)
 - [Shipped in v0.7.2](#shipped-in-v072)
 - [Shipped in v0.7.1](#shipped-in-v071)
 - [Shipped in v0.7.0](#shipped-in-v070)
@@ -14,6 +15,22 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.3
+
+Four iPad/iPhone UI defects. Closes #56.
+
+- **The header overlapped everything anchored beneath it.** [layout.tsx](../src/app/layout.tsx) sets `viewportFit: 'cover'` with a translucent status bar, so `env(safe-area-inset-top)` is non-zero on iOS/iPadOS and the `safe-top` header is `48px + inset` tall — but the map wrapper, the sidebar, the detail panel and both scrims all positioned at a literal `top-12`, and the sidebar sized itself `calc(100dvh - 3rem)`. An inset-sized band of each sat underneath the header: the layer panel was clipped, the sidebar's route input was cut off, the detail panel's "NOTAM" label **and its close button** were unreachable, and on an iPhone the sidebar footer (version, Support, Terms, Privacy) was pushed off the bottom of the viewport entirely. There is now one `--app-header-h: calc(3rem + env(safe-area-inset-top, 0px))` in [globals.css](../src/app/globals.css) and every surface offsets by it. `safe-top` arrived in v0.7.0; the `3rem` offsets predate it and nothing reconciled the two.
+
+- **Neither side surface could be collapsed at `md`.** The list toggle was `md:hidden` and the aside was pinned `md:translate-x-0`, so from 768px up there was no way to collapse the list — and at exactly 768px the 320px list plus the 380px detail panel left ~68px of map. The header button now works at every width (`listCollapsed` for the desktop dock, `sidebarOpen` for the mobile drawer, both funnelled through one derived `listVisible`), and the map wrapper drops `md:start-80` when the dock is collapsed so the width goes back to the map rather than merely being uncovered. The detail panel needed no new control — its close button was simply one of the things the header was covering.
+
+- **A tapped stack of overlapping NOTAMs was unreachable once you opened one.** `onPick` did `setStack(null)`, and since committing a row also flies the map to that NOTAM, "tap the same pixel again" was not a way back. Picking now collapses [StackPicker](../src/components/map/StackPicker.tsx) to a `N here` chip at the map's top-start corner (`top-16`, clear of `SelectionToolbar`'s slot) that re-opens the full list docked beneath itself. The stack is retired by the *next* map click instead: `MapClickHandler` reports `onStack` on every ordinary click, empty hits included, so a chip can never outlive the point it describes. Modifier-click returns first — it is additive and must not disturb a stack being browsed. The picker also gained an explicit dismiss button, since on a map the tap-outside that used to be the only close gesture immediately re-runs the hit test.
+
+- **The time-window popover hung off the left edge of the screen.** It is 240px wide and was anchored `end-0` against its own ~54px trigger button, inside a 296px sidebar content box — so its left edge landed at roughly -30px and the quick-range chips, both `datetime-local` fields and the Apply button were all clipped. The `relative` context now sits on the filter row, so `end-0` right-aligns to the sidebar; `top` stays `auto`, so the popover still opens from its static position directly under the button. Measured at 67-307 inside a 320px sidebar.
+
+- **"Plan route" renamed to "Filter by route"**, which is what the control actually does — it narrows the list to NOTAMs intersecting the corridor, it does not plan anything.
+
+- **The Support link did nothing in the iOS shell.** `@capacitor/ios` implements `createWebViewWith` as `UIApplication.shared.open(url)` (`WebViewDelegationHandler.swift:310-315`). The shell serves the app from `capacitor://localhost`, so `<a href="/support" target="_blank">` handed iOS a `capacitor://` URL it has no handler for and the tap was a silent no-op. Now a same-tab `next/link`. Terms and Privacy were never affected because they are buttons opening `LegalModal` in-app. **Nothing in this app may use `target="_blank"` for an internal route.**
 
 ## Shipped in v0.7.2
 

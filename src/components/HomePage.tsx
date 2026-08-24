@@ -60,7 +60,13 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  // Two flags because the sidebar is two different things. Below md it is a
+  // drawer overlaying the map, closed by default. At md and up it is a dock
+  // that takes width off the map, open by default. Each breakpoint reads its
+  // own flag, so the CSS can stay breakpoint-driven instead of asking JS which
+  // one applies.
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [route, setRoute] = useState<Route | null>(null);
   const [routeIndex, setRouteIndex] = useState<RoutePointIndex>(EMPTY_INDEX);
   const [legalDoc, setLegalDoc] = useState<'terms' | 'privacy' | null>(null);
@@ -178,6 +184,9 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
   }, [notams, selectedIds, finalList]);
 
   const detailOpen = selectedNotam !== null;
+  // Only for the toggle button's label and aria-expanded — the layout itself
+  // never asks this, it uses the `md:` variants.
+  const sidebarVisible = isDesktop ? !sidebarCollapsed : sidebarOpen;
 
   // Keeps the focused shape clear of whichever chrome is covering the map.
   const focusPadding = useMemo(
@@ -230,14 +239,20 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
 
   return (
     <div className="relative h-dvh overflow-hidden bg-paper">
-      <header className="safe-top fixed inset-x-0 top-0 z-[10001] flex items-center gap-2 border-b border-rule bg-paper-raised px-2 md:px-4">
-        <div className="flex h-12 w-full items-center gap-2">
+      {/* The token is the ONLY place the header's height is written down —
+          everything anchored below it offsets by the same value. */}
+      <header className="safe-top fixed inset-x-0 top-0 z-[10001] flex h-[var(--app-header-h)] items-center gap-2 border-b border-rule bg-paper-raised px-2 md:px-4">
+        <div className="flex w-full items-center gap-2">
           <button
             type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-ink-2 transition-colors hover:bg-paper-sunk hover:text-ink md:hidden"
+            onClick={() =>
+              isDesktop
+                ? setSidebarCollapsed((v) => !v)
+                : setSidebarOpen((v) => !v)
+            }
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-ink-2 transition-colors hover:bg-paper-sunk hover:text-ink"
             aria-label="Toggle NOTAM list"
-            aria-expanded={sidebarOpen}
+            aria-expanded={sidebarVisible}
           >
             <Menu className="size-5" aria-hidden />
           </button>
@@ -286,6 +301,7 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
         onToggleSelect={toggleSelect}
         onClear={clearSelection}
         isOpen={sidebarOpen}
+        isCollapsed={sidebarCollapsed}
         onClose={() => setSidebarOpen(false)}
         onOpenLegal={setLegalDoc}
         filterBar={
@@ -318,11 +334,18 @@ export default function HomePage({ termsMd, privacyMd }: HomePageProps) {
 
       <div
         className={cn(
-          'fixed bottom-0 top-12 z-0 overflow-hidden bg-paper-sunk',
+          'fixed bottom-0 top-[var(--app-header-h)] z-0 overflow-hidden bg-paper-sunk',
+          // Both docks take width off the map rather than covering it, so
+          // collapsing either hands the pixels straight back. MapView's
+          // ResizeObserver calls invalidateSize when the transition ends.
+          //
+          // Breakpoint-driven, NOT `isDesktop && …`: the `md:` variant already
+          // means exactly that width, and gating it on JS too leaves the class
+          // out of the server-rendered HTML, so the map paints full-bleed and
+          // then jumps 320px once React hydrates.
           'start-0 end-0 md:start-80',
-          // The desktop panel takes width off the map rather than covering it.
-          // MapView calls invalidateSize when this transition ends.
-          isDesktop && detailOpen && 'md:end-[380px]',
+          sidebarCollapsed && 'md:start-0',
+          detailOpen && 'md:end-[380px]',
         )}
       >
         {error && (

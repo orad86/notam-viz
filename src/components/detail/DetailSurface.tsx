@@ -52,7 +52,7 @@ export default function DetailSurface({
           modal. At peek and half the map must stay usable underneath. */}
       {open && !isDesktop && detent === 'full' && (
         <div
-          className="fixed inset-x-0 bottom-0 top-12 z-[9400] bg-paper-overlay"
+          className="fixed inset-x-0 bottom-0 top-[var(--app-header-h)] z-[9400] bg-paper-overlay"
           onClick={() => onDetentChange('half')}
           aria-hidden
         />
@@ -72,12 +72,12 @@ export default function DetailSurface({
           !open && 'invisible pointer-events-none',
           isDesktop
             ? [
-                'bottom-0 end-0 top-12 w-[380px] border-s shadow-lg',
+                'bottom-0 end-0 top-[var(--app-header-h)] w-[380px] border-s shadow-lg',
                 'transition-transform duration-200 ease-out',
                 open ? 'translate-x-0' : 'translate-x-full',
               ]
             : [
-                'inset-x-0 bottom-0 top-12 rounded-t-lg border-t shadow-lg',
+                'inset-x-0 bottom-0 top-[var(--app-header-h)] rounded-t-lg border-t shadow-lg',
                 !open && 'translate-y-full',
               ],
         )}

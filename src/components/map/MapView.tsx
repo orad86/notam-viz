@@ -150,6 +150,8 @@ export default function MapView({
     airports: 0,
   });
   const [stack, setStack] = useState<{
+    /** Bumped per opening click — see `handleStack`. */
+    seq: number;
     ids: string[];
     at: { x: number; y: number };
   } | null>(null);
@@ -159,6 +161,22 @@ export default function MapView({
   const handleKmlCount = useCallback((key: KmlKey, count: number) => {
     setKmlCounts((prev) => (prev[key] === count ? prev : { ...prev, [key]: count }));
   }, []);
+
+  // Every ordinary click reports here, empty hits included, so the previous
+  // stack is retired by the click that moved on from it rather than lingering
+  // as a chip pointing somewhere the user has left.
+  //
+  // `seq` increments per opening click and keys the picker, so every click
+  // gets a freshly mounted, expanded card. Keying on the ids alone would not:
+  // an overlap covers many pixels, so a second click a few pixels away usually
+  // resolves to the very same NOTAMs and would have left the chip up.
+  const handleStack = useCallback((ids: string[], at: { x: number; y: number }) => {
+    setStack((prev) =>
+      ids.length > 1 ? { seq: (prev?.seq ?? 0) + 1, ids, at } : null,
+    );
+  }, []);
+
+  const dismissStack = useCallback(() => setStack(null), []);
 
   // Paint order is also stacking order: biggest first so it sits at the back and
   // the small shapes on top of it stay clickable. `notamsAtPoint` reverses this
@@ -285,22 +303,22 @@ export default function MapView({
           selectedIds={selectedIds}
           onSelectNotam={onSelectNotam}
           onToggleSelect={onToggleSelect}
-          onStack={(ids, at) => setStack({ ids, at })}
+          onStack={handleStack}
           focusPadding={focusPadding}
         />
       </MapContainer>
 
       {stack && stackNotams.length > 0 && (
         <StackPicker
+          // A new stack is a new picker: remounting resets it to the expanded
+          // card, so the chip left over from the previous one cannot persist.
+          key={stack.seq}
           notams={stackNotams}
           at={stack.at}
           focusedId={selectedNotam?.id ?? null}
           onFocus={onPreviewNotam}
-          onPick={(n) => {
-            onSelectNotam(n);
-            setStack(null);
-          }}
-          onDismiss={() => setStack(null)}
+          onPick={onSelectNotam}
+          onDismiss={dismissStack}
         />
       )}
 
