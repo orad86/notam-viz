@@ -110,6 +110,13 @@ interface ClickProps {
   paintOrder: readonly string[];
   onSelectNotam: (n: ParsedNotam | null) => void;
   onToggleSelect: (id: string) => void;
+  /**
+   * Everything the click landed on, reported on EVERY ordinary click including
+   * the empty one. The stack outlives the click that opened it now (picking a
+   * row collapses the picker to a reopenable chip rather than destroying it),
+   * so the next click has to be what retires it — otherwise the chip keeps
+   * offering a list for a place the user has already moved on from.
+   */
   onStack: (ids: string[], at: { x: number; y: number }) => void;
 }
 
@@ -125,29 +132,28 @@ export function MapClickHandler({
     click: (e) => {
       const ids = notamsAtPoint(map, e.originalEvent, registry.current, paintOrder);
 
+      // Modifier-click keeps its historical meaning (toggle into the export
+      // selection) on desktop. It is unreachable on touch by definition, which
+      // is why selection is also exposed as a button in the detail sheet. It
+      // returns before onStack: an additive gesture must not retire the stack
+      // the user is browsing.
+      const oe = e.originalEvent;
+      if (ids.length > 0 && (oe.shiftKey || oe.metaKey || oe.ctrlKey)) {
+        onToggleSelect(ids[0]);
+        return;
+      }
+
+      onStack(ids, { x: e.containerPoint.x, y: e.containerPoint.y });
+
       if (ids.length === 0) {
         onSelectNotam(null);
         return;
       }
 
-      const byId = new Map(notams.map((n) => [n.id, n]));
-
-      // Modifier-click keeps its historical meaning (toggle into the export
-      // selection) on desktop. It is unreachable on touch by definition, which
-      // is why selection is also exposed as a button in the detail sheet.
-      const oe = e.originalEvent;
-      if (oe.shiftKey || oe.metaKey || oe.ctrlKey) {
-        onToggleSelect(ids[0]);
-        return;
-      }
-
       if (ids.length === 1) {
-        const n = byId.get(ids[0]);
+        const n = notams.find((notam) => notam.id === ids[0]);
         if (n) onSelectNotam(n);
-        return;
       }
-
-      onStack(ids, { x: e.containerPoint.x, y: e.containerPoint.y });
     },
   });
 

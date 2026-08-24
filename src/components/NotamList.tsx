@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { ParsedNotam } from '@/types/notam';
 import { decodeNotam } from '@/lib/notam/decode';
 import { APP_VERSION } from '@/lib/version';
@@ -15,7 +16,10 @@ interface NotamListProps {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onClear: () => void;
+  /** Mobile only: is the drawer pulled out over the map? */
   isOpen: boolean;
+  /** Desktop only: is the docked panel folded away to give the map its width? */
+  isCollapsed: boolean;
   onClose: () => void;
   filterBar: React.ReactNode;
   routeInput?: React.ReactNode;
@@ -97,6 +101,7 @@ export default function NotamList({
   onToggleSelect,
   onClear,
   isOpen,
+  isCollapsed,
   onClose,
   filterBar,
   routeInput,
@@ -121,21 +126,29 @@ export default function NotamList({
     <>
       {isOpen && (
         <div
-          className="fixed inset-x-0 bottom-0 top-12 z-[9000] bg-paper-overlay md:hidden"
+          className="fixed inset-x-0 bottom-0 top-[var(--app-header-h)] z-[9000] bg-paper-overlay md:hidden"
           onClick={onClose}
           aria-hidden
         />
       )}
 
       <aside
-        // dvh tracks the mobile browser chrome collapsing; vh does not.
-        style={{ height: 'calc(100dvh - 3rem)' }}
+        // dvh tracks the mobile browser chrome collapsing; vh does not. The
+        // subtrahend must be the header token, not 3rem: with a bare 3rem the
+        // aside overhangs the viewport by the safe-area inset and takes the
+        // footer — version, Support, Terms, Privacy — off the bottom of an
+        // iPhone.
+        style={{ height: 'calc(100dvh - var(--app-header-h))' }}
         className={cn(
-          'fixed start-0 top-12 z-[9999] flex w-[85%] max-w-sm flex-col',
+          'fixed start-0 top-[var(--app-header-h)] z-[9999] flex w-[85%] max-w-sm flex-col',
           'border-e border-rule bg-paper-raised shadow-lg',
           'transform transition-transform duration-200 ease-out',
           'md:w-80 md:max-w-none md:shadow-none',
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+          // One line per breakpoint, each reading its own flag. Below md the
+          // drawer is closed unless pulled out; at md the dock is open unless
+          // collapsed. The `md:` variants override the base ones.
+          isOpen ? 'translate-x-0' : '-translate-x-full',
+          isCollapsed ? 'md:-translate-x-full' : 'md:translate-x-0',
         )}
       >
         {routeInput}
@@ -196,14 +209,17 @@ export default function NotamList({
             v{APP_VERSION}
           </span>
           <span className="flex items-center gap-1 text-2xs text-ink-3">
-            <a
+            {/* Same tab, deliberately. Capacitor's WebViewDelegationHandler
+                routes every window.open through UIApplication.shared.open, and
+                iOS has no handler for the capacitor:// scheme the shell serves
+                from — so target="_blank" made this link a silent no-op in the
+                native app. */}
+            <Link
               href="/support"
-              target="_blank"
-              rel="noreferrer"
               className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"
             >
               Support
-            </a>
+            </Link>
             <button
               type="button"
               onClick={() => onOpenLegal('terms')}

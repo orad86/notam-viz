@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Layers, X } from 'lucide-react';
 import { ParsedNotam } from '@/types/notam';
 import { decodeNotam } from '@/lib/notam/decode';
 import { useClickOutside } from '@/hooks/useClickOutside';
@@ -15,13 +15,36 @@ interface Props {
   focusedId: string | null;
   /** Move focus without committing — the picker stays open. */
   onFocus: (n: ParsedNotam) => void;
-  /** Commit a choice and close. */
+  /** Commit a choice. The card folds to a chip; the stack stays reachable. */
   onPick: (n: ParsedNotam) => void;
+  /** Retire the stack entirely — no chip, nothing to reopen. */
   onDismiss: () => void;
 }
 
 const CARD_WIDTH = 276;
 const MAX_HEIGHT = 300;
+const GAP = 8;
+
+/**
+ * Corner slot for the collapsed chip, mirroring its `start-3 top-16` classes.
+ * `top-16` rather than `top-3` because SelectionToolbar owns the corner at md.
+ */
+const CHIP_LEFT = 12;
+const CHIP_TOP = 64;
+const CHIP_HEIGHT = 30;
+
+/**
+ * What the stack is currently showing.
+ *
+ * Re-opening from the chip docks the card under it rather than returning to the
+ * click point: committing a NOTAM flies the map to it, so those coordinates no
+ * longer describe anything on screen.
+ */
+type View = 'card-at-click' | 'chip' | 'card-at-corner';
+
+function clamp(value: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(value, hi));
+}
 
 /**
  * Shown when a single click lands on several overlapping NOTAMs.
@@ -41,7 +64,12 @@ export default function StackPicker({
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  useClickOutside(ref, true, onDismiss);
+  const [view, setView] = useState<View>('card-at-click');
+  const isChip = view === 'chip';
+
+  // Inactive while collapsed: the chip has to survive taps on the detail panel
+  // and the map controls, and only its own X or the next map click retires it.
+  useClickOutside(ref, !isChip, onDismiss);
 
   const decoded = useMemo(
     () => notams.map((n) => ({ notam: n, headline: decodeNotam(n).headline })),
@@ -68,6 +96,7 @@ export default function StackPicker({
   );
 
   useEffect(() => {
+    if (isChip) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         e.preventDefault();
@@ -81,7 +110,7 @@ export default function StackPicker({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [step, onDismiss]);
+  }, [step, onDismiss, isChip]);
 
   // Keep the stepper's current entry visible when it walks past the fold.
   useEffect(() => {
@@ -113,15 +142,37 @@ export default function StackPicker({
     return () => observer.disconnect();
   }, []);
 
-  const GAP = 8;
+  const desired =
+    view === 'card-at-corner'
+      ? { left: CHIP_LEFT, top: CHIP_TOP + CHIP_HEIGHT + GAP }
+      : { left: at.x + GAP, top: at.y + GAP };
   const left = box
-    ? Math.max(GAP, Math.min(at.x + GAP, box.w - CARD_WIDTH - GAP))
-    : at.x + GAP;
+    ? clamp(desired.left, GAP, box.w - CARD_WIDTH - GAP)
+    : desired.left;
   const top = box
-    ? Math.max(GAP, Math.min(at.y + GAP, box.h - MAX_HEIGHT - GAP))
-    : at.y + GAP;
+    ? clamp(desired.top, GAP, box.h - MAX_HEIGHT - GAP)
+    : desired.top;
 
   const position = activeIndex >= 0 ? activeIndex + 1 : null;
+
+  if (isChip) {
+    return (
+      <button
+        type="button"
+        onClick={() => setView('card-at-corner')}
+        aria-label={`Reopen the list of ${notams.length} NOTAMs at the tapped point`}
+        className="absolute start-3 top-16 z-[1050] inline-flex items-center gap-1.5 rounded-md border border-rule-strong bg-paper-raised px-2.5 py-1.5 shadow-md transition-colors hover:bg-paper-sunk"
+        // Same pointer guards the other map overlays use, so a touch drag on
+        // the chip does not pan the map underneath it.
+        onPointerDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        <Layers className="size-3.5 shrink-0 text-ink-3" aria-hidden />
+        <span className="plate-label">{notams.length} here</span>
+      </button>
+    );
+  }
 
   return (
     <div
@@ -159,6 +210,18 @@ export default function StackPicker({
           >
             <ChevronRight className="size-4" aria-hidden />
           </button>
+
+          {/* Tap-outside also dismisses, but on a map that same tap re-runs the
+              hit test and can immediately mint a new stack — so touch needs a
+              target that only ever closes. */}
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss this stack"
+            className="ms-0.5 inline-flex size-7 items-center justify-center rounded-xs text-ink-3 transition-colors hover:bg-paper-raised hover:text-ink"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
         </div>
       </div>
 
@@ -172,7 +235,10 @@ export default function StackPicker({
             <li key={notam.id}>
               <button
                 type="button"
-                onClick={() => onPick(notam)}
+                onClick={() => {
+                  onPick(notam);
+                  setView('chip');
+                }}
                 aria-current={isActive}
                 className={cn(
                   'relative flex w-full flex-col items-start gap-0.5 border-b border-rule px-3 py-2.5 text-start transition-colors last:border-0',
@@ -209,7 +275,7 @@ export default function StackPicker({
       </ul>
 
       <p className="border-t border-rule bg-paper-sunk px-3 py-1.5 text-2xs text-ink-3">
-        Arrows step focus · tap a row to open it
+        Arrows step focus · open a row and this list stays one tap away
       </p>
     </div>
   );

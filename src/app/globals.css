@@ -21,6 +21,18 @@
 @import './theme/notam-viz.css';
 
 @layer base {
+  /* Height of the fixed app header, INCLUDING the notch it pads for.
+     `viewportFit: 'cover'` plus a translucent status bar let the notch underlap
+     fixed chrome, so the header is `safe-top` + a 3rem content row — taller
+     than 3rem on every iOS device. Every surface anchored below it must offset
+     by this token, never by a literal 3rem: that mismatch is what put the layer
+     panel, the sidebar's route input and the detail panel's close button
+     underneath the header, and pushed the sidebar footer off the bottom of an
+     iPhone. */
+  :root {
+    --app-header-h: calc(3rem + env(safe-area-inset-top, 0px));
+  }
+
   /* The map owns the whole viewport; nothing outside it should ever scroll.
      -webkit-text-size-adjust stops iOS resizing text on rotation, and
      touch-action removes the 300ms double-tap delay (and its zoom side

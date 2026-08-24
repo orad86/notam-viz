@@ -26,6 +26,8 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 - `src/app/theme/notam-viz.css` is the only file permitted to diverge, and only for `--accent*` and `--type-*`.
 - **No raw hex in components.** Use the token utilities (`bg-paper-raised`, `text-ink-2`, `border-rule`, `bg-accent-wash`). Map geometry colour lives in `globals.css` on `.notam-pane path`, not in `pathOptions`.
 - Light theme only, by design. There is no dark mode and no `dark:` variant anywhere.
+- **Anything anchored below the app header offsets by `--app-header-h`, never by `3rem`.** The header is `safe-top` + a 3rem row, and `viewportFit: 'cover'` makes `env(safe-area-inset-top)` non-zero on every iOS device — so a literal `top-12` puts an inset-sized band of that surface underneath the header. That shipped in v0.7.0 and hid the detail panel's close button, clipped the layer panel, and pushed the sidebar footer off the bottom of an iPhone. The token lives in `globals.css`.
+- **No `target="_blank"` on an internal route.** Capacitor routes every `window.open` through `UIApplication.shared.open`, and iOS has no handler for the `capacitor://` scheme the shell serves from, so the link is a silent no-op in the native app. Use `next/link`.
 - Icons are `lucide-react`, always sized `size-3.5`/`size-4` and `aria-hidden`. No emoji glyphs in JSX.
 - Import order in `globals.css` is load-bearing: the `@layer` declaration first, then `tailwindcss`, then Leaflet into `layer(vendor)`, then tokens → bridge → app layer. Leaflet **must** be layered — unlayered CSS beats every Tailwind utility in v4.
 
@@ -38,6 +40,9 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 - **Verify map changes against `next build && next start`, not `next dev`.** StrictMode double-invokes effects in dev, which masks Leaflet pane and layer-ordering bugs entirely.
 - **Do not put focus or selection state in `pathOptions`.** react-leaflet compares those by reference, so an object literal built during render calls `setStyle()` on all ~114 shapes every render. Visual state is classList on the `notams` pane (`.is-dimmed`, `.is-focused`, `.is-selected`).
 - There are **no Leaflet popups**. Their `_openPopup` used to call `stop(e)`, which suppressed the map click — removing them without the above architecture makes every shape click select and instantly clear.
+- **A stack outlives the click that opened it.** Picking a row folds `StackPicker` to a reopenable chip rather than clearing `stack`, because committing also flies the map to the chosen NOTAM — so re-tapping the same pixel does not find the others. It is the *next* map click that retires the stack, which is why `MapClickHandler` calls `onStack` on every ordinary click including the empty one, and why the picker is keyed on a per-click `seq`: an overlap spans many pixels, so keying on the NOTAM ids leaves the chip up when a later click resolves to the same set.
+- **Layout that differs by breakpoint uses `md:` variants, not `isDesktop &&`.** They mean the same width, but the JS flag is `false` during SSR, so gating a class on it drops the class from the server HTML and the map visibly jumps once React hydrates. `useIsDesktop` is for values CSS cannot express — the `flyToBounds` padding numbers — not for picking classes.
+- **Popovers in the sidebar anchor to the filter row, not to their trigger.** A 240px popover `end-0`-anchored to a 54px button hangs off the left edge of a 320px sidebar. The row owns `relative`; the trigger wrapper deliberately does not.
 - Detail lives in `src/components/detail/` (bottom sheet on mobile, docked panel at `md`), portaled to `document.body` so Leaflet's gesture handlers never see it.
 
 ## Testing harness
