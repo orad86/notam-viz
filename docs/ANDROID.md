@@ -62,6 +62,7 @@ signing material are gitignored.
 ### Signing key
 
 ```
+mkdir -p ~/keys && chmod 700 ~/keys
 keytool -genkeypair -v \
   -keystore ~/keys/notam-viz-upload.jks \
   -alias upload -keyalg RSA -keysize 2048 -validity 10000
@@ -131,6 +132,7 @@ Both are edited by hand. Nothing syncs them.
 1. **Create the upload key** (once, never again):
 
    ```
+   mkdir -p ~/keys && chmod 700 ~/keys
    keytool -genkeypair -v \
      -keystore ~/keys/notam-viz-upload.jks \
      -alias upload -keyalg RSA -keysize 2048 -validity 10000
