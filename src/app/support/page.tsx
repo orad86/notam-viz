@@ -144,8 +144,9 @@ export default function SupportPage() {
         </li>
         <li>
           <strong>Position doesn&apos;t appear.</strong> Make sure Location
-          permission is granted to NOTAM Visualizer in <em>Settings → Privacy &amp;
-          Security → Location Services</em>.
+          permission is granted to NOTAM Visualizer: on iPhone and iPad in{' '}
+          <em>Settings → Privacy &amp; Security → Location Services</em>, and on
+          Android in <em>Settings → Apps → NOTAM Visualizer → Permissions</em>.
         </li>
         <li>
           <strong>Wrong shape on map.</strong> Some NOTAMs use unusual
