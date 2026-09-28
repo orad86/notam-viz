@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "scrape": "tsx scripts/scrape.ts",
     "icons": "node scripts/generate-icons.mjs",
+    "play:assets": "node scripts/generate-play-assets.mjs",
     "native:build": "node scripts/native-build.mjs",
     "ios:build": "node scripts/native-build.mjs ios",
     "ios:open": "cap open ios",

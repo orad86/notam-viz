@@ -126,19 +126,128 @@ per PR.
 
 Both are edited by hand. Nothing syncs them.
 
+## First release, step by step
+
+1. **Create the upload key** (once, never again):
+
+   ```
+   keytool -genkeypair -v \
+     -keystore ~/keys/notam-viz-upload.jks \
+     -alias upload -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+   Copy `android-templates/key.properties.example` to `android/key.properties`
+   and fill in the absolute path and the two passwords. Back the `.jks` and the
+   passwords up somewhere encrypted. Neither file is ever committed.
+
+2. **Build the signed bundle:**
+
+   ```
+   NEXT_PUBLIC_API_BASE=https://notam.aero-logic.org npm run android:build
+   npm run android:aab
+   JAVA_HOME=/opt/homebrew/opt/openjdk@21 jarsigner -verify \
+     android/app/build/outputs/bundle/release/app-release.aab
+   ```
+
+   The last command must print `jar verified`. If Gradle complains about an
+   incomplete signing config, it names the missing field.
+
+3. **Generate the listing assets:** `npm run play:assets`.
+
+4. **Create the app** in the Play Console: "NOTAM Visualizer", English (or
+   Hebrew) as default language, App, Free.
+
+5. **Upload to Internal testing first**, not Production. Internal testing has
+   no review wait, so it is where you find out whether the bundle is accepted
+   and whether the app runs on real hardware. Accept Play App Signing when
+   prompted on this first upload.
+
+6. **Fill in everything under App content.** Play will not let you promote a
+   release until all of it is green. The Data safety answers are the ones
+   worth getting right the first time; see the checklist below.
+
+7. **Complete the store listing** with the assets from step 3.
+
+8. **Closed testing, if your account requires it.** A personal developer
+   account created after November 2023 must run a closed test with at least 12
+   testers who stay opted in for 14 continuous days. This is a wall-clock
+   wait, not a review queue, so start it as early as possible.
+
+9. **Promote to Production.** First review typically takes a few days. Every
+   later upload needs `versionCode` bumped by one.
+
+### Draft listing copy
+
+Short description (80 characters max):
+
+```
+Israeli IAA NOTAMs on an interactive map. Filter by route, altitude and time.
+```
+
+Full description, as a starting point. Keep the "not for operational flight
+planning" line: it matches the in-app disclaimer and the support page, and an
+aviation app that overclaims invites a policy problem.
+
+```
+NOTAM Visualizer plots Israeli Airports Authority NOTAMs on an interactive
+map, so you can see at a glance what is happening in the airspace you care
+about.
+
+- Every current NOTAM drawn as its real footprint: circles, polygons and
+  points, not just a list of codes.
+- Tap any shape to read the full text, with the Q-code and ICAO contractions
+  decoded into plain language.
+- Overlapping NOTAMs are resolvable. Tap a crowded area and step through
+  every notice under your finger.
+- Filter by free text, category, altitude band, time window, or a route
+  corridor between two points.
+- Reference layers for airports, navaids, VFR waypoints and IFR
+  intersections.
+- Export a selection to PDF, GPX or KML and share it anywhere.
+- Show your own position on the map. Your location is read on the device and
+  never transmitted.
+- No accounts, no ads, no analytics, no tracking.
+
+IMPORTANT: NOTAM Visualizer is for situational awareness only. It is not a
+certified aeronautical product and is not a substitute for an official
+pre-flight briefing. Always consult official IAA sources before any flight.
+```
+
+## Listing assets
+
+```
+npm run play:assets
+```
+
+Writes to `play-assets/` (gitignored): the 1024x500 feature graphic Play
+requires, a 512x512 app icon, and every screenshot in
+`play-assets/screenshots/src/` flattened and checked against Play's rules.
+
+Play rejects images with an alpha channel and caps screenshots at a **2:1**
+aspect ratio. A Pixel 7 is 1080x2400, which is 2.22:1, so raw captures are
+rejected. Capture at 1080x1920 instead:
+
+```
+adb shell wm size 1080x1920 && adb shell wm density 420
+adb exec-out screencap -p > play-assets/screenshots/src/01-map.png
+adb shell wm size reset && adb shell wm density reset
+```
+
+The script prints `REJECTED BY PLAY` with the reason for any source image
+that would not pass, so check its output before uploading.
+
 ## Play Console release checklist
 
 - [ ] Google Play developer account, identity verified. A personal account
       created after November 2023 must run a closed test with at least 12
       testers for 14 continuous days before it can promote to production.
+      Budget that time; it is the long pole in a first release.
 - [ ] Create the app: name "NOTAM Visualizer", package `il.notamviz.app`,
       free, category **Maps & Navigation**.
 - [ ] Enrol in Play App Signing on the first upload; export and keep the
       upload certificate.
 - [ ] Store listing: short description (80 chars), full description (4000),
-      512x512 icon (`public/icons/play-icon-512.png`), 1024x500 feature
-      graphic, at least two phone screenshots, tablet screenshots if tablets
-      are targeted.
+      and the assets from `npm run play:assets`.
 - [ ] App content — privacy policy URL `https://notam.aero-logic.org/privacy`.
 - [ ] App content — **Data safety: no data collected, no data shared.**
       Location is read on the device to draw the aircraft marker and is never

@@ -60,3 +60,7 @@ next-env.d.ts
 /android/app/src/main/assets/capacitor.config.json
 /android/app/src/main/assets/capacitor.plugins.json
 /android/capacitor-cordova-android-plugins/
+
+# Generated Play listing assets. Regenerate with `npm run play:assets`;
+# the screenshots under play-assets/screenshots/src/ are device captures.
+/play-assets/

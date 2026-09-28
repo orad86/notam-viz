@@ -91,6 +91,7 @@ gh workflow run "Daily Scrape"
 | `npm run android:build` | The same, limited to Android. |
 | `npm run android:open` | `cap open android` — open the project in Android Studio. |
 | `npm run android:aab` | `./gradlew bundleRelease` — signed Play bundle. Needs `android/key.properties` and a JDK 17-21. |
+| `npm run play:assets` | Build the Play listing assets (feature graphic, icon, screenshots) into `play-assets/`. |
 
 ## Source of truth
 
