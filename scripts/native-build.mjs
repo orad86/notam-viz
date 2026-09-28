@@ -33,6 +33,22 @@ if (requested && !ALL_PLATFORMS.includes(requested)) {
 }
 const platforms = requested ? [requested] : ALL_PLATFORMS;
 
+// Check this before doing any work. The Capacitor 8 CLI refuses to run on
+// Node < 22, but it only says so at the `cap sync` step -- after the Next
+// build and the icon pass have already succeeded, which reads like the build
+// worked. It did not: without the sync, the shell keeps whatever web bundle
+// it had, and the release build silently ships stale assets.
+const major = Number(process.versions.node.split('.')[0]);
+if (major < 22) {
+  console.error(
+    `Node ${process.versions.node} is too old. Capacitor 8 requires Node >=22 ` +
+    `(see engines.node and .nvmrc).\n` +
+    `  nvm use            # if you use nvm\n` +
+    `  export PATH="/opt/homebrew/opt/node@22/bin:$PATH"   # Homebrew node@22`,
+  );
+  process.exit(1);
+}
+
 if (!process.env.NEXT_PUBLIC_API_BASE) {
   console.error(
     'NEXT_PUBLIC_API_BASE is required for the native build.\n' +

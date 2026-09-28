@@ -27,21 +27,24 @@ def signingFields = [
 def missingSigningFields = signingFields.findAll { !it.value }.keySet()
 def hasSigningConfig = missingSigningFields.isEmpty()
 
+// Work out what is wrong now, but report it below, after `android {}`.
+// Throwing here aborts project evaluation before compileSdk is set, so AGP
+// adds its own "project ':app' does not specify `compileSdk`" failure on top
+// and the real cause is the second error in the list, not the first.
+def signingProblem = null
 if (!hasSigningConfig && missingSigningFields.size() < signingFields.size()) {
-    throw new GradleException(
+    signingProblem =
         "Incomplete release signing config: ${missingSigningFields.join(', ')} " +
         "not set. Fill in android/key.properties (see " +
         "android-templates/key.properties.example) or export the matching " +
         "ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS " +
         "/ ANDROID_KEY_PASSWORD. Leave all four unset to build unsigned."
-    )
-}
-
-if (hasSigningConfig && !file(signingFields.storeFile).exists()) {
-    throw new GradleException(
+} else if (hasSigningConfig && !file(signingFields.storeFile).exists()) {
+    signingProblem =
         "Release keystore not found at ${signingFields.storeFile}. " +
-        "Check storeFile in android/key.properties."
-    )
+        "Check storeFile in android/key.properties. If it still reads " +
+        "/absolute/path/to/..., that is the placeholder from " +
+        "key.properties.example and needs your real path."
 }
 
 android {
@@ -67,6 +70,9 @@ android {
     }
     signingConfigs {
         release {
+            if (signingProblem) {
+                throw new GradleException(signingProblem)
+            }
             if (hasSigningConfig) {
                 storeFile file(signingFields.storeFile)
                 storePassword signingFields.storePassword
