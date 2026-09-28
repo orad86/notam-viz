@@ -1,0 +1,120 @@
+apply plugin: 'com.android.application'
+
+// Release signing material. Never committed: android/key.properties is
+// gitignored and the keystore itself lives outside the repo. Local builds
+// read key.properties; a CI runner can export ANDROID_KEYSTORE_* instead.
+// See android-templates/key.properties.example and docs/ANDROID.md.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def signingValue = { String key, String envVar ->
+    keystoreProperties.getProperty(key) ?: System.getenv(envVar)
+}
+
+// All four values or none. A half-configured keystore otherwise reaches
+// signReleaseBundle and dies there on a bare NullPointerException with no
+// indication of which field is missing -- which is exactly what happens when
+// someone copies key.properties.example and fills in only the path.
+def signingFields = [
+    storeFile    : signingValue('storeFile', 'ANDROID_KEYSTORE_PATH'),
+    storePassword: signingValue('storePassword', 'ANDROID_KEYSTORE_PASSWORD'),
+    keyAlias     : signingValue('keyAlias', 'ANDROID_KEY_ALIAS'),
+    keyPassword  : signingValue('keyPassword', 'ANDROID_KEY_PASSWORD'),
+]
+def missingSigningFields = signingFields.findAll { !it.value }.keySet()
+def hasSigningConfig = missingSigningFields.isEmpty()
+
+if (!hasSigningConfig && missingSigningFields.size() < signingFields.size()) {
+    throw new GradleException(
+        "Incomplete release signing config: ${missingSigningFields.join(', ')} " +
+        "not set. Fill in android/key.properties (see " +
+        "android-templates/key.properties.example) or export the matching " +
+        "ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS " +
+        "/ ANDROID_KEY_PASSWORD. Leave all four unset to build unsigned."
+    )
+}
+
+if (hasSigningConfig && !file(signingFields.storeFile).exists()) {
+    throw new GradleException(
+        "Release keystore not found at ${signingFields.storeFile}. " +
+        "Check storeFile in android/key.properties."
+    )
+}
+
+android {
+    namespace = "il.notamviz.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "il.notamviz.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // versionName tracks the iOS MARKETING_VERSION so the two store
+        // listings agree. versionCode is a Play-only counter: bump it by one
+        // on every upload to any track, never reuse a value. Both are
+        // deliberately decoupled from package.json, whose patch version moves
+        // once per PR. See docs/ANDROID.md.
+        versionCode 1
+        versionName "1.1"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasSigningConfig) {
+                storeFile file(signingFields.storeFile)
+                storePassword signingFields.storePassword
+                keyAlias signingFields.keyAlias
+                keyPassword signingFields.keyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // The Capacitor bridge resolves plugins reflectively, so shrinking
+            // buys little and can strip them. Keep it off.
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Falls back to an unsigned bundle when no keystore is configured,
+            // which is what a debug-only checkout should get.
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

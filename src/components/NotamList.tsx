@@ -209,11 +209,12 @@ export default function NotamList({
             v{APP_VERSION}
           </span>
           <span className="flex items-center gap-1 text-2xs text-ink-3">
-            {/* Same tab, deliberately. Capacitor's WebViewDelegationHandler
-                routes every window.open through UIApplication.shared.open, and
-                iOS has no handler for the capacitor:// scheme the shell serves
-                from — so target="_blank" made this link a silent no-op in the
-                native app. */}
+            {/* Same tab, deliberately. Capacitor hands every window.open to
+                the OS: on iOS that is UIApplication.shared.open, which has no
+                handler for the capacitor:// scheme the shell serves from, so
+                target="_blank" made this a silent no-op; on Android it would
+                leave the app for a browser that cannot resolve the route
+                either. */}
             <Link
               href="/support"
               className="rounded-xs px-1.5 py-1 transition-colors hover:text-accent-text"

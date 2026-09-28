@@ -1,10 +1,15 @@
 // Deliver a generated file to the user.
 //
-// iOS (Capacitor): write to the app's Documents directory via
+// Native (Capacitor, iOS and Android): write to the Documents directory via
 // @capacitor/filesystem, then offer the native share sheet pointing at the
-// saved file. The file is visible in the Files app under
-// "On My iPhone → NOTAM Visualizer" once UIFileSharingEnabled +
-// LSSupportsOpeningDocumentsInPlace are set in Info.plist.
+// saved file.
+//   - iOS: the file is visible in the Files app under
+//     "On My iPhone → NOTAM Visualizer" once UIFileSharingEnabled +
+//     LSSupportsOpeningDocumentsInPlace are set in Info.plist.
+//   - Android: it lands in the public Documents folder, which needs no
+//     storage permission from API 30 up (the shell's minSdk), and reaches the
+//     share sheet as a FileProvider content URI. The Documents root has to be
+//     declared in res/xml/file_paths.xml or Share.share throws.
 //
 // Desktop: standard <a download> click.
 export async function triggerDownload(

@@ -94,8 +94,10 @@ export default function SupportPage() {
         selection. The selection counter appears at the top of the sidebar and
         on the map. Use the ⬇ pill in the filter bar to export your selection
         — or, if nothing is selected, the current filtered view — as PDF, GPX,
-        or KML. On iPhone the file is saved to the app&apos;s Files folder
-        (visible under <strong>On My iPhone → NOTAM Visualizer</strong>).
+        or KML. In the apps the file is saved to your device first and then
+        offered to the share sheet: on iPhone and iPad under{' '}
+        <strong>On My iPhone → NOTAM Visualizer</strong> in the Files app, and
+        on Android in your <strong>Documents</strong> folder.
       </P>
 
       <H2>Showing your position</H2>
@@ -152,9 +154,11 @@ export default function SupportPage() {
           below) with the NOTAM ID.
         </li>
         <li>
-          <strong>Export fails on iPhone.</strong> Open the Files app and
-          check <strong>On My iPhone → NOTAM Visualizer</strong>. The export saves
-          there before opening the share sheet.
+          <strong>Export seems to do nothing in the app.</strong> The file is
+          saved before the share sheet opens, so it is already on your device
+          even if you dismissed the sheet. On iPhone and iPad look under{' '}
+          <strong>On My iPhone → NOTAM Visualizer</strong> in the Files app; on
+          Android look in your <strong>Documents</strong> folder.
         </li>
       </ul>
 

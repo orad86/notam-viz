@@ -1,0 +1,74 @@
+// Merge into android/app/build.gradle after `npx cap add android`.
+// Capacitor scaffolds no release signing at all, so `./gradlew bundleRelease`
+// would emit an unsigned bundle that Play rejects.
+//
+// Precedence: android/key.properties, then ANDROID_KEYSTORE_* env vars, then
+// nothing (an unsigned bundle, which is what a debug-only checkout should
+// get). Neither the properties file nor any keystore is ever committed; see
+// key.properties.example and the android block in .gitignore.
+//
+// The all-or-nothing check is load-bearing. Without it a half-configured
+// keystore sails through configuration and dies in signReleaseBundle on a
+// bare `NullPointerException (no error message)` naming nothing -- which is
+// exactly what you get after copying key.properties.example and filling in
+// only storeFile.
+
+// --- above the `android {}` block ---
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def signingValue = { String key, String envVar ->
+    keystoreProperties.getProperty(key) ?: System.getenv(envVar)
+}
+
+def signingFields = [
+    storeFile    : signingValue('storeFile', 'ANDROID_KEYSTORE_PATH'),
+    storePassword: signingValue('storePassword', 'ANDROID_KEYSTORE_PASSWORD'),
+    keyAlias     : signingValue('keyAlias', 'ANDROID_KEY_ALIAS'),
+    keyPassword  : signingValue('keyPassword', 'ANDROID_KEY_PASSWORD'),
+]
+def missingSigningFields = signingFields.findAll { !it.value }.keySet()
+def hasSigningConfig = missingSigningFields.isEmpty()
+
+if (!hasSigningConfig && missingSigningFields.size() < signingFields.size()) {
+    throw new GradleException(
+        "Incomplete release signing config: ${missingSigningFields.join(', ')} " +
+        "not set. Fill in android/key.properties (see " +
+        "android-templates/key.properties.example) or export the matching " +
+        "ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS " +
+        "/ ANDROID_KEY_PASSWORD. Leave all four unset to build unsigned."
+    )
+}
+
+if (hasSigningConfig && !file(signingFields.storeFile).exists()) {
+    throw new GradleException(
+        "Release keystore not found at ${signingFields.storeFile}. " +
+        "Check storeFile in android/key.properties."
+    )
+}
+
+// --- inside the `android {}` block, beside buildTypes ---
+
+signingConfigs {
+    release {
+        if (hasSigningConfig) {
+            storeFile file(signingFields.storeFile)
+            storePassword signingFields.storePassword
+            keyAlias signingFields.keyAlias
+            keyPassword signingFields.keyPassword
+        }
+    }
+}
+
+// --- inside buildTypes.release ---
+
+// The Capacitor bridge resolves plugins reflectively, so shrinking buys
+// little and can strip them. Keep it off.
+minifyEnabled false
+if (hasSigningConfig) {
+    signingConfig signingConfigs.release
+}

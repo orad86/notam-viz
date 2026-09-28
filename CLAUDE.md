@@ -25,9 +25,9 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 - `src/app/theme/tokens.css` and `tailwind-bridge.css` are **copied verbatim** from that repo. Do not edit them locally; changes belong upstream. Property names are deliberately outside Tailwind's own namespaces (`--fs-*`, `--corner-*`, `--elev-*`) — renaming one makes the bridge self-referential and it silently resolves to nothing.
 - `src/app/theme/notam-viz.css` is the only file permitted to diverge, and only for `--accent*` and `--type-*`.
 - **No raw hex in components.** Use the token utilities (`bg-paper-raised`, `text-ink-2`, `border-rule`, `bg-accent-wash`). Map geometry colour lives in `globals.css` on `.notam-pane path`, not in `pathOptions`.
-- Light theme only, by design. There is no dark mode and no `dark:` variant anywhere.
-- **Anything anchored below the app header offsets by `--app-header-h`, never by `3rem`.** The header is `safe-top` + a 3rem row, and `viewportFit: 'cover'` makes `env(safe-area-inset-top)` non-zero on every iOS device — so a literal `top-12` puts an inset-sized band of that surface underneath the header. That shipped in v0.7.0 and hid the detail panel's close button, clipped the layer panel, and pushed the sidebar footer off the bottom of an iPhone. The token lives in `globals.css`.
-- **No `target="_blank"` on an internal route.** Capacitor routes every `window.open` through `UIApplication.shared.open`, and iOS has no handler for the `capacitor://` scheme the shell serves from, so the link is a silent no-op in the native app. Use `next/link`.
+- Light theme only, by design. There is no dark mode and no `dark:` variant anywhere. The Android shell theme is pinned to the light AppCompat parent for the same reason — Capacitor scaffolds a `DayNight` parent that would paint a dark window behind the light UI.
+- **Anything anchored below the app header offsets by `--app-header-h`, never by `3rem`.** The header is `safe-top` + a 3rem row, and `viewportFit: 'cover'` makes `env(safe-area-inset-top)` non-zero on every iOS device — so a literal `top-12` puts an inset-sized band of that surface underneath the header. That shipped in v0.7.0 and hid the detail panel's close button, clipped the layer panel, and pushed the sidebar footer off the bottom of an iPhone. The token lives in `globals.css`. On Android the inset resolves to 0 with an opaque status bar, so the token collapses to 3rem there — which is correct, not a reason to hardcode it.
+- **No `target="_blank"` on an internal route.** Capacitor hands every `window.open` to the OS. On iOS that is `UIApplication.shared.open`, which has no handler for the `capacitor://` scheme the shell serves from, so the link is a silent no-op; on Android it leaves the app for the external browser, which then cannot resolve the route either. Use `next/link`.
 - Icons are `lucide-react`, always sized `size-3.5`/`size-4` and `aria-hidden`. No emoji glyphs in JSX.
 - Import order in `globals.css` is load-bearing: the `@layer` declaration first, then `tailwindcss`, then Leaflet into `layer(vendor)`, then tokens → bridge → app layer. Leaflet **must** be layered — unlayered CSS beats every Tailwind utility in v4.
 
@@ -45,9 +45,19 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 - **Popovers in the sidebar anchor to the filter row, not to their trigger.** A 240px popover `end-0`-anchored to a 54px button hangs off the left edge of a 320px sidebar. The row owns `relative`; the trigger wrapper deliberately does not.
 - Detail lives in `src/components/detail/` (bottom sheet on mobile, docked panel at `md`), portaled to `document.body` so Leaflet's gesture handlers never see it.
 
+## Native shells
+
+`ios/` and `android/` are both committed and both wrap the same static export from `scripts/native-build.mjs`. See `docs/IOS.md` and `docs/ANDROID.md`.
+
+- **Never commit signing material.** `android/key.properties`, any `.jks` or `.keystore`, and `.env.local` are gitignored. Check `git status` before committing anything under `android/`.
+- **`ios-templates/` and `android-templates/` are the source of truth** for every hand-edit layered on top of `npx cap add <platform>`. If you change a native config file, change the template too, or the next person who re-scaffolds loses it.
+- **The Capacitor major version is pinned by Google Play, not by preference.** Capacitor Android does not support a target SDK other than its own, and Play requires the current one. Raising `targetSdkVersion` means a Capacitor major bump, which drags the Node version with it.
+- **Adding a web API that needs a permission is an Android manifest change.** iOS infers nothing from `Info.plist` alone, but Android refuses an undeclared runtime permission *silently* — no dialog, straight to denied. Geolocation already hit this.
+- Gradle needs a JDK in the 17-21 range. Android Studio's bundled runtime is newer and Gradle rejects it.
+
 ## Testing harness
 
-Vitest. `npm run test` locally; CI workflow is `.github/workflows/ci.yml`. See `docs/TESTING.md`. No component/UI tests today — the map's logic is instead extracted into pure modules (`hit-test.ts`, `decode.ts`) that are covered.
+Vitest. `npm run test` locally; CI workflow is `.github/workflows/ci.yml`. See `docs/TESTING.md`. No component/UI tests today — the map's logic is instead extracted into pure modules (`hit-test.ts`, `decode.ts`) that are covered. There is no Android or iOS build in CI; both are built manually.
 
 ## What not to touch without a plan
 

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NOTAM Visualizer</string>
+    <string name="title_activity_main">NOTAM Visualizer</string>
+    <string name="package_name">il.notamviz.app</string>
+    <string name="custom_url_scheme">il.notamviz.app</string>
+</resources>
