@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Background layer of the adaptive icon. Matches the plate the artwork is
+     drawn on in public/icons/source/notam-icon.svg, whose foreground layer
+     scripts/generate-icons.mjs renders with that plate stripped out. -->
+<resources>
+    <color name="ic_launcher_background">#0f172a</color>
+</resources>

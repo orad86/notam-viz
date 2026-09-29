@@ -1,0 +1,31 @@
+<!--
+  Merge these into android/app/src/main/AndroidManifest.xml after
+  `npx cap add android`. Capacitor scaffolds a manifest with INTERNET only,
+  which is not enough for this app:
+
+    - ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION
+      The position layer calls navigator.geolocation from the webview.
+      Capacitor's BridgeWebChromeClient.onGeolocationPermissionsShowPrompt
+      does request these at runtime, but Android refuses an undeclared
+      permission outright, without showing a dialog, so the layer reports
+      "denied" and there is nothing on screen to explain why.
+
+    - uses-feature ... required="false"
+      Declaring a location permission implies the hardware feature, which
+      would hide the app on Play from devices without GPS. The map is fully
+      usable without a fix, so opt back out.
+
+    - android:allowBackup="false" on <application>
+      The app stores nothing worth restoring (no accounts, no settings that
+      survive a reinstall) and Play's Data safety form is easier to answer
+      honestly without auto-backup in the picture.
+
+  `density` is already in the MainActivity configChanges list as of
+  Capacitor 8; without it the webview reloads when the app is resized.
+-->
+
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+<uses-feature android:name="android.hardware.location.gps" android:required="false" />
+<uses-feature android:name="android.hardware.location" android:required="false" />

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The two shell colours, mirrored from the web theme. These are the only
+  places Android can express them; the CSS tokens in
+  src/app/theme/tokens.css remain the source of truth, so change them there
+  first and copy the value here.
+
+    paper  = the paper token, the warm page background the web UI paints
+    plate  = the navy the app icon and adaptive-icon background sit on
+-->
+<resources>
+    <color name="paper">#f5f1e7</color>
+    <color name="plate">#0f172a</color>
+</resources>

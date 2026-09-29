@@ -43,3 +43,24 @@ next-env.d.ts
 /ios/DerivedData/
 /ios/**/xcuserdata/
 /ios/capacitor-cordova-ios-plugins/
+
+# android / capacitor
+# Signing material. The upload keystore lives outside the repo; key.properties
+# points at it. Neither is ever committed.
+/android/key.properties
+/android/**/*.jks
+/android/**/*.keystore
+/android/local.properties
+/android/.idea/
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/release/
+/android/app/src/main/assets/public/
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/assets/capacitor.plugins.json
+/android/capacitor-cordova-android-plugins/
+
+# Generated Play listing assets. Regenerate with `npm run play:assets`;
+# the screenshots under play-assets/screenshots/src/ are device captures.
+/play-assets/

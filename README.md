@@ -11,7 +11,7 @@ Interactive map viewer for Israeli Airports Authority (IAA) NOTAMs. A GitHub Act
 - **Touch-first UI.** Collapsible mobile sidebar (hamburger drawer), popup-first NOTAM detail (no heavy detail card), click-to-deselect on the map, ESC key clears selection, Shift-click for multi-select on desktop, popup checkbox on touch.
 - **Export** to PDF, GPX, or KML from an always-visible pill in the filter bar. Scope follows selection: checked rows export as a subset; otherwise the current filtered view is used.
 - **Device location + aircraft marker.** `My position` in the header requests Geolocation, drops a rotating aircraft icon at your fix, and draws an accuracy circle. Fix stays on-device — never transmitted.
-- **Installable PWA / iOS app.** Web app ships a manifest + service worker (last-response cache for `/api/notams`, offline shell). A Capacitor wrapper in `ios/` bundles the same UI as a native iOS app — see [docs/IOS.md](docs/IOS.md).
+- **Installable PWA / native apps.** Web app ships a manifest + service worker (last-response cache for `/api/notams`, offline shell). Capacitor wrappers in `ios/` and `android/` bundle the same UI as native apps for the App Store and Google Play — see [docs/IOS.md](docs/IOS.md) and [docs/ANDROID.md](docs/ANDROID.md).
 - **Data ops.** Daily GitHub Action scrapes IAA → Upstash Redis. API route reads with `s-maxage=3600, stale-while-revalidate=86400`, rate-limited at 30 req/min per IP.
 - **Tested and gated.** Vitest suite pinning parsers, coord extraction, Q-code mapping, route filter, and scraper validators. CI runs `lint`, `typecheck`, `test` on every PR.
 
@@ -23,7 +23,7 @@ Interactive map viewer for Israeli Airports Authority (IAA) NOTAMs. A GitHub Act
 
 ## Quickstart
 
-Prerequisites: Node ≥ 20, `npm`, and a Vercel KV (Upstash Redis) store you can read from locally.
+Prerequisites: Node ≥ 22 (see `.nvmrc`), `npm`, and a Vercel KV (Upstash Redis) store you can read from locally.
 
 ```bash
 git clone <repo>
@@ -67,7 +67,8 @@ gh workflow run "Daily Scrape"
 - [docs/REFERENCE.md](docs/REFERENCE.md) — `ParsedNotam` shape, geometry union, Q-code decoder tables, `GET /api/notams` contract.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — env vars (KV + cookie jar), daily scrape workflow, deployment notes, cookie-jar refresh procedure.
 - [docs/TESTING.md](docs/TESTING.md) — Vitest setup, fixtures, conventions, coverage gaps.
-- [docs/IOS.md](docs/IOS.md) — Capacitor wrapper setup, App Store compliance checklist, release steps.
+- [docs/IOS.md](docs/IOS.md) — Capacitor iOS wrapper setup, App Store compliance checklist, release steps.
+- [docs/ANDROID.md](docs/ANDROID.md) — Capacitor Android wrapper setup, signing, Play Console checklist, release steps.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — release notes, testing state, security posture, known technical debt.
 - [CLAUDE.md](CLAUDE.md) — agent-facing guidance for editing this repo.
 
@@ -83,9 +84,14 @@ gh workflow run "Daily Scrape"
 | `npm run test` | Run the Vitest suite once. |
 | `npm run test:watch` | Vitest in watch mode for local development. |
 | `npm run scrape` | `tsx scripts/scrape.ts` — one-shot scrape → KV (also what the GitHub Action runs). |
-| `npm run icons` | Rasterise `public/icons/source/notam-icon.svg` into the PWA + iOS AppIcon PNG set. Requires `sharp`. |
-| `npm run ios:build` | Static export (no API route) + icons + `cap sync ios`. Requires `NEXT_PUBLIC_API_BASE=https://<prod>`. |
+| `npm run icons` | Rasterise `public/icons/source/notam-icon.svg` into the PWA, iOS AppIcon and Android mipmap PNG sets. Requires `sharp`. |
+| `npm run native:build` | Static export (no API route) + icons + `cap sync` for every scaffolded platform. Requires `NEXT_PUBLIC_API_BASE=https://<prod>`. |
+| `npm run ios:build` | The same, limited to iOS. |
 | `npm run ios:open` | `cap open ios` — open the Xcode workspace. |
+| `npm run android:build` | The same, limited to Android. |
+| `npm run android:open` | `cap open android` — open the project in Android Studio. |
+| `npm run android:aab` | `./gradlew bundleRelease` — signed Play bundle. Needs `android/key.properties` and a JDK 17-21. |
+| `npm run play:assets` | Build the Play listing assets (feature graphic, icon, screenshots) into `play-assets/`. |
 
 ## Source of truth
 

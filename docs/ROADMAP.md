@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.4](#shipped-in-v074)
 - [Shipped in v0.7.3](#shipped-in-v073)
 - [Shipped in v0.7.2](#shipped-in-v072)
 - [Shipped in v0.7.1](#shipped-in-v071)
@@ -15,6 +16,24 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.4
+
+Android app for Google Play, and the Capacitor 8 upgrade it required. Closes #58.
+
+- **Capacitor 7 → 8, Node 20 → 22.** Not optional and not cosmetic: Google Play requires new apps and updates to target API 36, and Capacitor Android does not support a target SDK other than the one its major version ships with. API 36 means Capacitor 8, and Capacitor 8 requires Node 22. `engines.node` is now `>=22`, both GitHub workflows run 22, and a `.nvmrc` pins it. Vercel reads `engines`. On the iOS side the migration raised the Podfile platform to 15.0 and adopted UIScene — `ios/App/App/SceneDelegate.swift` and the `UIApplicationSceneManifest` key are load-bearing, not scaffolding noise.
+
+- **`android/` shell.** `il.notamviz.app`, same appId as iOS, wrapping the same static export. `minSdkVersion 30` was picked deliberately: `@capacitor/filesystem`'s `Directory.Documents` needs no storage permission from API 30, so [download.ts](../src/lib/export/download.ts) keeps one code path for both platforms instead of growing an Android branch with a runtime permission request. `compileSdk`/`targetSdk` are 36. Committed like `ios/`, with build output, Gradle state and all signing material gitignored.
+
+- **Location needs a manifest declaration Capacitor does not scaffold.** The position layer calls `navigator.geolocation` directly and has since v0.5.0, where the note "no extra plugin needed" was true — of iOS. On Android, Capacitor's `BridgeWebChromeClient.onGeolocationPermissionsShowPrompt` does ask for the permission at runtime, but Android refuses an *undeclared* permission outright, without showing a dialog, so the feature would have failed silently with nothing on screen to explain it. `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` are now in the manifest, with `uses-feature ... required="false"` so declaring them does not hide the app from devices without GPS.
+
+- **`scripts/ios-build.mjs` → `scripts/native-build.mjs`.** Takes a platform argument (`ios`, `android`, or none for every scaffolded platform); `IOS_BUILD` became `NATIVE_BUILD`, with the old name kept as an alias for one release. `npm run ios:build` still does exactly what it did.
+
+- **Icons: Android adaptive, round, splash and Play listing targets** added to [generate-icons.mjs](../scripts/generate-icons.mjs) rather than pulling in `@capacitor/assets`. The adaptive foreground is the source SVG with its navy plate stripped in memory and the artwork inset to the 72/108 safe zone, so the launcher mask never clips the caution triangle; the plate moves to the adaptive background colour resource. The PWA manifest also gained the `maskable` icon it never had.
+
+- **Release signing without secrets in the repo.** `android/app/build.gradle` reads `android/key.properties`, falls back to `ANDROID_KEYSTORE_*` env vars, and emits an unsigned bundle when neither is present rather than failing a debug-only checkout. Both paths were verified against a throwaway keystore. `android-templates/` mirrors `ios-templates/` as the source of truth for every hand-edit applied on top of `npx cap add android`.
+
+- **The shell theme is pinned to light.** Capacitor scaffolds `Theme.AppCompat.DayNight.NoActionBar`, which follows the system dark mode — but the web UI is light-only by design, so a device in dark mode would paint a dark window behind a light page. Light parent, paper system bars, dark bar icons, and the Android 12+ splash API wired to paper so a cold start never flashes anything else.
 
 ## Shipped in v0.7.3
 
@@ -112,7 +131,7 @@ Mobile / App Store delivery pass. The web UI, parsers, and export pipeline are u
 - **PWA foundation.** [public/manifest.webmanifest](../public/manifest.webmanifest), [public/sw.js](../public/sw.js), and [src/app/register-sw.tsx](../src/app/register-sw.tsx). Service worker precaches the shell and network-first-with-fallback for `/api/notams` under a single cache key, so the last successful response survives airplane mode. Apple web-app meta (`apple-mobile-web-app-capable`, `viewport-fit=cover`) wired into [src/app/layout.tsx](../src/app/layout.tsx).
 - **Device location + aircraft marker.** [src/hooks/useDeviceLocation.ts](../src/hooks/useDeviceLocation.ts) wraps `navigator.geolocation.watchPosition`. [src/components/UserLocationLayer.tsx](../src/components/UserLocationLayer.tsx) renders a rotating SVG DivIcon (heading-aware; falls back to a dot at zero speed) plus an accuracy circle. Wired into [src/components/MapView.tsx](../src/components/MapView.tsx) as an additive layer and toggled from the header in [src/components/HomePage.tsx](../src/components/HomePage.tsx). Fix stays in the webview — never transmitted anywhere.
 - **iOS app via Capacitor.** [capacitor.config.ts](../capacitor.config.ts) + the `ios/` directory wrap a `next export` static bundle. Pinned to Capacitor `^7.x` because the repo targets Node 20 (v8 needs Node 22). Plugins: status-bar, splash-screen, share, haptics. Geolocation uses the browser API directly — no extra plugin needed.
-- **Conditional static export.** [next.config.mjs](../next.config.mjs) emits `output: 'export'` only under `IOS_BUILD=1`. [scripts/ios-build.mjs](../scripts/ios-build.mjs) moves `src/app/api` aside for the export (route handlers aren't exported), runs icons, and `cap sync`s. The Vercel SSR build is untouched.
+- **Conditional static export.** [next.config.mjs](../next.config.mjs) emits `output: 'export'` only under `IOS_BUILD=1`. `scripts/ios-build.mjs` moves `src/app/api` aside for the export (route handlers aren't exported), runs icons, and `cap sync`s. The Vercel SSR build is untouched. (Renamed to [scripts/native-build.mjs](../scripts/native-build.mjs) in v0.7.4; `IOS_BUILD` became `NATIVE_BUILD`.)
 - **App icon.** [public/icons/source/notam-icon.svg](../public/icons/source/notam-icon.svg) — 1024×1024 caution triangle over a compass rose on navy. [scripts/generate-icons.mjs](../scripts/generate-icons.mjs) rasterises via `sharp` into the PWA set (180/192/512/1024) and the unified iOS AppIcon (1024, no alpha, as Apple requires).
 - **App Store compliance.** [ios-templates/Info.plist.additions.xml](../ios-templates/Info.plist.additions.xml) and [ios-templates/PrivacyInfo.xcprivacy](../ios-templates/PrivacyInfo.xcprivacy) applied to the scaffolded iOS project: `NSLocationWhenInUseUsageDescription`, `ITSAppUsesNonExemptEncryption=false`, required-reason API declarations. Privacy nutrition label = "Data Not Collected".
 - **CORS on `/api/notams`.** [src/app/api/notams/route.ts](../src/app/api/notams/route.ts) now sends `Access-Control-Allow-Origin: *` on every code path plus an `OPTIONS` handler. Capacitor's `capacitor://localhost` origin is cross-origin; without this the iOS shell could not fetch the feed. Safe — the endpoint is read-only GET with no cookies or auth.
@@ -221,6 +240,22 @@ Items still open, grounded in current source, ranked by maintainer-impact.
 `MapView.tsx` was split in v0.7.0 (see Shipped) — the deferral stopped applying once the click model and the detail surface both had to change inside it.
 
 [src/lib/server/scraper-mobile.ts](../src/lib/server/scraper-mobile.ts) is ~450 lines and the planned `src/lib/scraper/*` split is still deferred, with the original reasoning intact: the test suite pins its observable behavior, and a pure reorganization ships regression risk with zero user-visible value. Revisit when there's a second reason to edit it.
+
+### `IOS_BUILD` env alias still accepted — low
+
+[next.config.mjs](../next.config.mjs) honours both `NATIVE_BUILD=1` and the old `IOS_BUILD=1`, kept for one release so a shell profile that still exports the old name keeps working. Remove the alias after v0.7.4.
+
+### Store version numbers are bumped by hand — low
+
+`MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in the Xcode project and `versionName`/`versionCode` in `android/app/build.gradle` are deliberately decoupled from `package.json`, whose patch version moves once per PR. Nothing syncs or validates them, so a forgotten `versionCode` bump is caught by Play rejecting the upload rather than by anything local.
+
+### Android hardware back button closes the app at the root — low
+
+Capacitor's default. The detail sheet, the stack picker and the legal modals do not intercept it, so back dismisses the app rather than the open surface. Accepted for the first Play release; fixing it means a `@capacitor/app` `backButton` listener wired to the same state the close buttons drive.
+
+### No native build in CI — low
+
+`.github/workflows/ci.yml` runs lint, typecheck and tests only. Neither shell is compiled on a PR, so a Gradle or Xcode breakage surfaces at release time. An Android debug build is the cheap one to add (Ubuntu runner, no macOS minutes, no signing secrets needed).
 
 ### `runPool` result array can have holes on exceptions in early workers — low
 

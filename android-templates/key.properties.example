@@ -1,0 +1,24 @@
+# Copy to android/key.properties and fill in. That path is gitignored, as is
+# every *.jks and *.keystore under android/. Keep the keystore itself outside
+# the repo entirely.
+#
+# Create the upload key once:
+#
+#   mkdir -p ~/keys && chmod 700 ~/keys
+#   keytool -genkeypair -v \
+#     -keystore ~/keys/notam-viz-upload.jks \
+#     -alias upload -keyalg RSA -keysize 2048 -validity 10000
+#
+# This is the UPLOAD key, not the app signing key. Play App Signing holds the
+# latter once you enrol on the first upload, so losing this file is
+# recoverable (Google can reset it) but still costs a support round trip.
+# Back it up somewhere encrypted along with the two passwords.
+#
+# A CI runner can export ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD,
+# ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD instead of writing this file;
+# android/app/build.gradle falls back to those.
+
+storeFile=/absolute/path/to/notam-viz-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

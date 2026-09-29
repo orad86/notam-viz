@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="my_images" path="." />
+    <cache-path name="my_cache_images" path="." />
+    <!-- Exports land in the public Documents folder via
+         @capacitor/filesystem (Directory.Documents), then go to the share
+         sheet as a FileProvider content URI. Without a root covering that
+         path, Share.share throws "Failed to find configured root".
+         See src/lib/export/download.ts. -->
+    <external-path name="documents" path="Documents/" />
+</paths>

@@ -7,19 +7,22 @@ HTTPS from the app bundle.
 
 ## Version pins
 
-Capacitor is pinned to the **v7 family** because the repo targets Node 20
-(see `engines.node`). Capacitor v8 requires Node 22. If you bump Node to 22
-you can move everything to `@capacitor/*@^8` and raise the Podfile platform
-to `15.0`.
+Capacitor is on the **v8 family**, which requires **Node 22** (see
+`engines.node` and `.nvmrc`) and **Xcode 26+**. The Podfile platform is
+`15.0`, the Capacitor 8 minimum; the App target itself deploys to 15.6.
+
+The move from v7 came from the Android side: Google Play requires target API
+36, which only Capacitor 8 supports. See [ANDROID.md](ANDROID.md).
+
+Capacitor 8.5 adopts UIScene on iOS. `ios/App/App/SceneDelegate.swift` and
+the `UIApplicationSceneManifest` key in `Info.plist` come from that
+migration; do not remove them.
 
 ## One-time setup
 
 ```
-npm i -D @capacitor/cli@^7 @capacitor/core@^7 @capacitor/ios@^7 \
-         @capacitor/status-bar@^7 @capacitor/splash-screen@^7 \
-         @capacitor/share@^7 @capacitor/haptics@^7 sharp
-
-NEXT_PUBLIC_API_BASE=https://<your-vercel-domain> npm run ios:build
+npm i
+NEXT_PUBLIC_API_BASE=https://notam.aero-logic.org npm run native:build
 npx cap add ios
 cd ios/App && pod install && cd ../..
 ```
@@ -40,7 +43,7 @@ Capacitor config are applied automatically by `npm run ios:build` +
 ## Build & run
 
 ```
-NEXT_PUBLIC_API_BASE=https://<your-vercel-domain> npm run ios:build
+NEXT_PUBLIC_API_BASE=https://notam.aero-logic.org npm run ios:build
 npm run ios:open
 ```
 
@@ -64,4 +67,5 @@ Then pick a simulator or a signed device in Xcode and hit Run.
   haptics on selection.
 - The scraper, Upstash KV, and rate limiter stay on Vercel. They are not
   bundled into the iOS IPA.
-- For Android later: `npx cap add android` in the same project.
+- The Android shell is the same project and the same static bundle. See
+  [ANDROID.md](ANDROID.md).
