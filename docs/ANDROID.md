@@ -251,11 +251,21 @@ that would not pass, so check its output before uploading.
 - [ ] Store listing: short description (80 chars), full description (4000),
       and the assets from `npm run play:assets`.
 - [ ] App content — privacy policy URL `https://notam.aero-logic.org/privacy`.
-- [ ] App content — **Data safety: no data collected, no data shared.**
-      Location is read on the device to draw the aircraft marker and is never
-      transmitted, so it is "used" but not "collected". The rate limiter sees
-      request IPs at the Vercel edge; that is infrastructure logging, not
-      collection by the app. `PRIVACY.md` is the wording to match.
+- [ ] App content — **Data safety: decide this deliberately, do not
+      default to "no data collected".** Location is read on the device to draw
+      the aircraft marker and is never transmitted, so it needs no
+      declaration. The open question is the IP address. Play only treats
+      off-device data as not collected when it is processed *ephemerally*: held
+      in memory, kept no longer than the request needs, and used for nothing
+      else. The rate-limit counter expires within about a minute and plausibly
+      qualifies, but `PRIVACY.md` section 2.2 says Vercel keeps request logs
+      (IP, user agent, path) under its default retention, and stored logs do
+      not qualify. Answer the form to match what that section says, or the
+      policy and the form will contradict each other on review. Read
+      [Play's Data safety help](https://support.google.com/googleplay/android-developer/answer/10787469)
+      for the category that covers IP addresses before answering. The App
+      Store's "Data Not Collected" label in [IOS.md](IOS.md) rests on the same
+      assumption and deserves the same check.
 - [ ] App content — no ads, no in-app purchases; content rating (IARC)
       questionnaire; target audience adults; not a news, government, health
       or financial app.
