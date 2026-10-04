@@ -53,6 +53,7 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 - **`ios-templates/` and `android-templates/` are the source of truth** for every hand-edit layered on top of `npx cap add <platform>`. If you change a native config file, change the template too, or the next person who re-scaffolds loses it.
 - **The Capacitor major version is pinned by Google Play, not by preference.** Capacitor Android does not support a target SDK other than its own, and Play requires the current one. Raising `targetSdkVersion` means a Capacitor major bump, which drags the Node version with it.
 - **Adding a web API that needs a permission is an Android manifest change.** iOS infers nothing from `Info.plist` alone, but Android refuses an undeclared runtime permission *silently* — no dialog, straight to denied. Geolocation already hit this.
+- **Check `git status` for `src/app/_api_native_disabled` before every commit.** `native-build.mjs` moves `src/app/api` aside during the build and restores it afterwards. Older copies of the script stranded the rename when a step failed, and `git add -A` then committed it, which took production `/api/notams` down (v0.7.5). The script now self-heals and `tests/build/api-route.test.ts` guards it, but stage files by name rather than `-A` anyway.
 - Gradle needs a JDK in the 17-21 range. Android Studio's bundled runtime is newer and Gradle rejects it.
 
 ## Testing harness

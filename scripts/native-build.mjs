@@ -58,20 +58,52 @@ if (!process.env.NEXT_PUBLIC_API_BASE) {
   process.exit(1);
 }
 
+// Move src/app/api back if a previous run left it aside. `output: 'export'`
+// does not emit route handlers, so this script renames the directory for the
+// duration of the build; if that run died without cleaning up, the repo is
+// left with no API route at all. That shipped in #59: the leftover rename was
+// swept into a `git add -A` and production /api/notams went 404.
+function restoreApi() {
+  if (existsSync(apiDisabled) && !existsSync(apiDir)) {
+    renameSync(apiDisabled, apiDir);
+    return true;
+  }
+  return false;
+}
+
+if (restoreApi()) {
+  console.warn(
+    'Restored src/app/api from a previous interrupted native build. ' +
+    'Check `git status` before committing.',
+  );
+}
+
+// Throws instead of calling process.exit(): process.exit() skips `finally`,
+// which is exactly how the rename above used to get stranded.
 function run(cmd, args, env = {}) {
   const r = spawnSync(cmd, args, {
     cwd: repo,
     stdio: 'inherit',
     env: { ...process.env, ...env },
   });
-  if (r.status !== 0) process.exit(r.status ?? 1);
+  if (r.status !== 0) {
+    const err = new Error(`${cmd} ${args.join(' ')} exited with ${r.status ?? 'a signal'}`);
+    err.exitCode = r.status ?? 1;
+    throw err;
+  }
 }
 
-let moved = false;
+// Ctrl-C ends the process without running `finally`, so restore explicitly.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    restoreApi();
+    process.exit(130);
+  });
+}
+
 try {
   if (existsSync(apiDir)) {
     renameSync(apiDir, apiDisabled);
-    moved = true;
   }
   run('npx', ['next', 'build'], { NATIVE_BUILD: '1' });
   run('npm', ['run', 'icons']);
@@ -84,8 +116,9 @@ try {
       );
     }
   }
+} catch (err) {
+  console.error(`\nNative build failed: ${err.message}`);
+  process.exitCode = err.exitCode ?? 1;
 } finally {
-  if (moved && existsSync(apiDisabled)) {
-    renameSync(apiDisabled, apiDir);
-  }
+  restoreApi();
 }

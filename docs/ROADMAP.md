@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.5](#shipped-in-v075)
 - [Shipped in v0.7.4](#shipped-in-v074)
 - [Shipped in v0.7.3](#shipped-in-v073)
 - [Shipped in v0.7.2](#shipped-in-v072)
@@ -16,6 +17,16 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.5
+
+Production hotfix. Closes #60.
+
+- **`/api/notams` returned 404 in production after v0.7.4 merged.** `src/app/api` had been committed as `src/app/_api_native_disabled`. [native-build.mjs](../scripts/native-build.mjs) renames the directory aside while it builds the static export, because `output: 'export'` cannot emit route handlers, and restores it in a `finally` block. But its `run()` helper called `process.exit()` when a step failed, and `process.exit()` does not run `finally`. A failed native build therefore stranded the rename, and a later `git add -A` committed it. The web app loaded with no data, and both native apps, which fetch from that endpoint, were empty. The flaw was inherited from the original `ios-build.mjs`; v0.7.4 added a new way to trigger it by failing a build on Node 20.
+
+- **Why nothing caught it.** Lint and typecheck never reference the route, no test asserted it existed, and Vercel happily builds a site that has no API. The preview deployment passed. The first signal was a 404 in production.
+
+- **Fix.** `run()` now throws and the exit code is set after cleanup, so `finally` always runs. SIGINT and SIGTERM restore the directory explicitly. A leftover rename from a previous interrupted run is restored at the start of the next one, with a warning. [tests/build/api-route.test.ts](../tests/build/api-route.test.ts) asserts the route is in place and the aside directory is absent, and fails on the broken layout. The failed-step and self-heal paths were exercised with a stub that forces a mid-build failure; the Ctrl-C handler was written but not rigorously exercised.
 
 ## Shipped in v0.7.4
 
