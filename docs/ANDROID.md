@@ -145,13 +145,20 @@ Both are edited by hand. Nothing syncs them.
 2. **Build the signed bundle:**
 
    ```
+   export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
+   export JAVA_HOME=/opt/homebrew/opt/openjdk@21
    NEXT_PUBLIC_API_BASE=https://notam.aero-logic.org npm run android:build
    npm run android:aab
-   JAVA_HOME=/opt/homebrew/opt/openjdk@21 jarsigner -verify \
-     android/app/build/outputs/bundle/release/app-release.aab
+   $JAVA_HOME/bin/keytool -printcert -jarfile \
+     android/app/build/outputs/bundle/release/app-release.aab | grep Owner
    ```
 
-   The last command must print `jar verified`. If Gradle complains about an
+   Both exports are required in every new shell. Without Node 22 the
+   Capacitor sync is skipped and the bundle ships stale assets; without
+   `JAVA_HOME` on JDK 21 Gradle fails with "Cannot find a Java installation
+   matching languageVersion=21". The last command must show your own name in
+   `Owner`. Do not rely on `jarsigner -verify` alone: it passes for any signer,
+   including a leftover test key, and for a stale bundle from an earlier build. If Gradle complains about an
    incomplete signing config, it names the missing field.
 
 3. **Generate the listing assets:** `npm run play:assets`.
