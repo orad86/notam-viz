@@ -16,9 +16,10 @@ export const runtime = 'nodejs';
 
 const CACHE_HEADER = `public, s-maxage=${CACHE_MAX_AGE_SECONDS}, stale-while-revalidate=${CACHE_STALE_SECONDS}`;
 
-// Allow cross-origin reads so the Capacitor iOS shell (origin
-// `capacitor://localhost`) and any embedders can fetch the public NOTAM feed.
-// The endpoint is read-only GET with no cookies or auth, so `*` is safe.
+// Allow cross-origin reads so the Capacitor shells (origin
+// `capacitor://localhost` on iOS, `https://localhost` on Android) and any
+// embedders can fetch the public NOTAM feed. The endpoint is read-only GET
+// with no cookies or auth, so `*` is safe.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',

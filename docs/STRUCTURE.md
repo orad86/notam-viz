@@ -8,10 +8,16 @@ A short orientation map. Read this first if you are new. The deep-dives are [ARC
 src/        Application source.
 tests/      Vitest tests; mirrors src/lib/. Fixtures under tests/fixtures/.
 docs/       Architecture, operations, testing, scraping notes.
-scripts/    Build helpers (icons, iOS) and the GitHub Actions scrape entry.
+scripts/    Build helpers (icons, native shells) and the GitHub Actions scrape entry.
 public/     Static assets served as-is (manifest, sw.js, KML overlays, leaflet/).
-ios/        Capacitor iOS shell (the iOS app). Decoupled from the web build.
+ios/        Capacitor iOS shell (the App Store app). Decoupled from the web build.
+android/    Capacitor Android shell (the Play app). Same bundle, same appId.
+ios-templates/      Hand-edits applied on top of `npx cap add ios`. Source of truth.
+android-templates/  Hand-edits applied on top of `npx cap add android`. Source of truth.
 ```
+
+Both shells wrap the same static export, produced by
+`scripts/native-build.mjs`. See [IOS.md](IOS.md) and [ANDROID.md](ANDROID.md).
 
 ## `src/` tree
 
@@ -46,7 +52,7 @@ src/lib/
 │   ├── pdf.ts              HTML cards rendered into a printable PDF.
 │   ├── kml.ts              Google-Earth KML.
 │   ├── gpx.ts              GPS waypoint format.
-│   └── download.ts         Browser/iOS download trigger; small XML/HTML escapes.
+│   └── download.ts         Browser/native download trigger; small XML/HTML escapes.
 └── server/         Server-only infrastructure. NEVER import these from a client component.
     ├── config.ts           IAA URLs, KV keys, cache windows. Single source of truth.
     ├── kv.ts               Vercel KV reads/writes for cached NOTAMs.

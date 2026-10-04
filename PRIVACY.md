@@ -1,9 +1,9 @@
 # NOTAM Visualizer — Privacy Notice
 
-**Effective Date**: 2026-04-21
-**Version**: 1.0
+**Effective Date**: 2026-09-28
+**Version**: 1.1
 
-NOTAM Visualizer is a public, read-only web viewer. It does not offer accounts and does not collect profile information. This notice describes the limited operational data the Service handles.
+NOTAM Visualizer is a public, read-only viewer, available as a website and as native apps for iOS and Android. It does not offer accounts and does not collect profile information. This notice describes the limited operational data the Service handles, and applies equally to the website and to both apps.
 
 ## 1. What we do not collect
 
@@ -13,6 +13,7 @@ NOTAM Visualizer is a public, read-only web viewer. It does not offer accounts a
 - No advertising identifiers.
 - No third-party analytics scripts.
 - No cookies set by the application itself.
+- No device location. See section 2.4.
 
 ## 2. What we do process
 
@@ -27,6 +28,18 @@ The hosting platform (Vercel) produces standard request logs — IP, user agent,
 ### 2.3. Application logs
 
 The Service emits structured operational logs (for example, `scrape.list.fetched`, `api.notams.served`) for debugging. These logs record counts, durations, and failure reasons. They do not record IP addresses or any personally identifying information.
+
+### 2.4. Device location
+
+If you turn on the position layer, the app asks your device for your location and draws an aircraft marker and an accuracy circle on the map. This happens entirely on your device.
+
+Your location is never transmitted, never stored, and never reaches the Service's servers or any third party. It is held in memory only while the layer is on, and discarded when you turn it off or close the app. The feature is optional; the map and every other feature work without it, and you can decline or revoke the permission at any time in your device settings.
+
+For the purposes of Apple's privacy nutrition label and Google Play's Data safety form, location is **used but not collected**.
+
+### 2.5. Files you export
+
+Exports to PDF, GPX, and KML are generated on your device from data already on screen. In the apps they are written to your device's Documents folder and offered to the system share sheet, which you control. Nothing about an export is sent to the Service.
 
 ## 3. Data we publish
 

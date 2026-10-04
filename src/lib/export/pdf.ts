@@ -195,11 +195,13 @@ ${cards}
 </body>
 </html>`;
 
-  // On the iOS Capacitor shell, save the HTML file to the app's Documents
-  // directory (visible in the Files app) and offer the share sheet. WebKit
-  // in Capacitor does not surface a usable print dialog, so rendering a PDF
-  // would require a native plugin; the HTML is fully self-contained and can
-  // be re-opened in Safari/Files to print to PDF.
+  // On the native Capacitor shells (iOS and Android), save the HTML file to
+  // the Documents directory and offer the share sheet. WebKit in Capacitor
+  // does not surface a usable print dialog, so rendering a PDF would require
+  // a native plugin; the HTML is fully self-contained and can be re-opened in
+  // Safari/Files or Chrome/Files to print to PDF. Android's WebView does have
+  // a print API, but routing one platform through it and not the other would
+  // produce two different export artefacts from the same button.
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
     void triggerDownload(`notams-${timestampSuffix()}.html`, 'text/html', html);

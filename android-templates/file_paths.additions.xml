@@ -1,0 +1,12 @@
+<!--
+  Merge into android/app/src/main/res/xml/file_paths.xml after
+  `npx cap add android`.
+
+  Exports are written to the public Documents folder by @capacitor/filesystem
+  (Directory.Documents) and then handed to the share sheet as a FileProvider
+  content URI. The scaffolded roots cover external storage generically, but
+  Share.share throws "Failed to find configured root" without a root that
+  matches the Documents path on every OEM. See src/lib/export/download.ts.
+-->
+
+<external-path name="documents" path="Documents/" />

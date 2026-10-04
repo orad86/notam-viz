@@ -1,0 +1,39 @@
+<!--
+  Merge into android/app/src/main/res/values/styles.xml after
+  `npx cap add android`, and add values/colors.xml alongside it.
+
+  Two things the Capacitor scaffold gets wrong for this app:
+
+    1. AppTheme.NoActionBar inherits Theme.AppCompat.DayNight.NoActionBar,
+       which follows the system dark mode. The web UI is light-only by
+       design (no dark mode, no `dark:` variant anywhere), so the shell must
+       be too, or a device in dark mode paints a dark window behind a light
+       page. Parent becomes Theme.AppCompat.Light.NoActionBar and the system
+       bars get the paper token with dark icons.
+
+    2. AppTheme.NoActionBarLaunch only sets @drawable/splash, which is the
+       stock Capacitor logo and ignores the Android 12+ splash API. Point
+       windowSplashScreenBackground at the paper token and the animated icon at the
+       plate-less artwork, so a cold start never flashes anything but paper.
+       scripts/generate-icons.mjs writes both drawables.
+
+  the paper token and the navy plate live in src/app/theme/tokens.css; values/colors.xml
+  is a copy, not a second source of truth.
+-->
+
+<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+    <item name="windowActionBar">false</item>
+    <item name="windowNoTitle">true</item>
+    <item name="android:background">@null</item>
+    <item name="android:statusBarColor">@color/paper</item>
+    <item name="android:navigationBarColor">@color/paper</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="android:windowLightNavigationBar">true</item>
+</style>
+
+<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+    <item name="android:background">@drawable/splash</item>
+    <item name="windowSplashScreenBackground">@color/paper</item>
+    <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+    <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+</style>
