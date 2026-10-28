@@ -11,7 +11,10 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: Playwright only installs Chromium deps on
+    # Ubuntu releases it knows, and 1.59 predates 26.04. Unpin after
+    # upgrading Playwright to >= 1.61. See #62.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       IAA_COOKIE_JAR: ${{ secrets.IAA_COOKIE_JAR }}
