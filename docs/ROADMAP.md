@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.6](#shipped-in-v076)
 - [Shipped in v0.7.4](#shipped-in-v074)
 - [Shipped in v0.7.3](#shipped-in-v073)
 - [Shipped in v0.7.2](#shipped-in-v072)
@@ -16,6 +17,18 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.6
+
+Daily scrape restored. Closes #62.
+
+- **The scrape failed every day from 2026-10-22 to 2026-10-28.** [scrape.yml](../.github/workflows/scrape.yml) ran on `ubuntu-latest`, which GitHub moved from 24.04 to 26.04 on 2026-10-22. `npx playwright install --with-deps chromium` only supports the Ubuntu releases that existed when that Playwright version shipped, and 1.59.1 has no entry for 26.04, so the job stopped at the install step (`Playwright does not support chromium on ubuntu26.04-x64`) before the scraper ran. KV kept the 2026-10-21 snapshot, and the app served it for a week.
+
+- **Fix.** The job is pinned to `ubuntu-24.04`, the image of the last green run. Verified with a manual run on the branch: `Scraped 125/125 NOTAMs`, 0 errors. The pin is a stopgap, because GitHub retires old images. The durable fix is upgrading Playwright (1.61.0 is the first release that lists 26.04), tracked as #64.
+
+- **Not the same failure as 2026-10-17/18.** Those two runs failed with `CERT_HAS_EXPIRED` from the IAA host. IAA rotated the certificate (now valid to 2027-04-20), and the runs passed again from 2026-10-19 without any change on our side.
+
+- **Why nobody noticed for a week.** Nothing reports a failed scrape. The only signal is the header's "updated Nh ago". Tracked as #65.
 
 ## Shipped in v0.7.4
 
@@ -234,6 +247,14 @@ Not-an-issue-here:
 ## Technical debt
 
 Items still open, grounded in current source, ranked by maintainer-impact.
+
+### Scrape failures are silent — medium
+
+Nothing in `.github/workflows/` reports a failed scrape, so the 2026-10-22 runner breakage went a week unnoticed while production served stale data. #65 proposes a failure step in `scrape.yml`, a freshness check on `fetchedAt`, or both.
+
+### Scrape runner pinned to `ubuntu-24.04` — low
+
+[scrape.yml](../.github/workflows/scrape.yml) cannot use `ubuntu-latest` until `playwright` is at 1.61 or later (see v0.7.6). GitHub retires old runner images, so the pin has an expiry date. #64 tracks the upgrade. Keep the `sec-ch-ua` header in `scraper-mobile.ts` consistent with the Chromium version Playwright installs.
 
 ### Monolithic scraper file — medium
 

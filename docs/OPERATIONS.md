@@ -60,7 +60,7 @@ No feature-flag system. No per-environment YAML. All behaviour is in code.
 4. Calls `setLatestNotams(payload)` → `POST /set/notams:latest` on Upstash.
 5. Logs `Scraped N/M NOTAMs in <iso>. Errors: K.` and exits 0.
 
-**Runner image is pinned to `ubuntu-24.04`.** `npx playwright install --with-deps` only knows the Ubuntu releases that existed when that Playwright version shipped, and fails outright on a newer one (`Playwright does not support chromium on ubuntu26.04-x64`). When GitHub moved `ubuntu-latest` to 26.04 on 2026-10-22, the job failed at the install step every day until it was pinned (#62). Before moving the runner forward, upgrade `playwright` to a release that lists the target image — 1.61.0 is the first with 26.04.
+**Runner image is pinned to `ubuntu-24.04`.** `npx playwright install --with-deps` only knows the Ubuntu releases that existed when that Playwright version shipped, and fails outright on a newer one (`Playwright does not support chromium on ubuntu26.04-x64`). When GitHub moved `ubuntu-latest` to 26.04 on 2026-10-22, the job failed at the install step every day until it was pinned (#62). Before moving the runner forward, upgrade `playwright` to a release that lists the target image — 1.61.0 is the first with 26.04. Tracked as #64.
 
 **Triggering a scrape manually:**
 
