@@ -49,6 +49,7 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 
 `ios/` and `android/` are both committed and both wrap the same static export from `scripts/native-build.mjs`. See `docs/IOS.md` and `docs/ANDROID.md`.
 
+- **Never commit `src/app/_api_native_disabled`.** The native build moves `src/app/api` there for the static export and moves it back afterwards. A `_` folder is private in the App Router, so committing it removes `/api/notams` from production. That shipped in v0.7.4 and every user got "API error: 404" until v0.7.7. The script now restores the folder on failure and on Ctrl-C, and `tests/server/route-layout.test.ts` fails CI if the rename is committed. Keep `process.exit()` out of the script's `try`, because it skips `finally`.
 - **Never commit signing material.** `android/key.properties`, any `.jks` or `.keystore`, and `.env.local` are gitignored. Check `git status` before committing anything under `android/`.
 - **`ios-templates/` and `android-templates/` are the source of truth** for every hand-edit layered on top of `npx cap add <platform>`. If you change a native config file, change the template too, or the next person who re-scaffolds loses it.
 - **The Capacitor major version is pinned by Google Play, not by preference.** Capacitor Android does not support a target SDK other than its own, and Play requires the current one. Raising `targetSdkVersion` means a Capacitor major bump, which drags the Node version with it.

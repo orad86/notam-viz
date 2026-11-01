@@ -3,6 +3,7 @@
 Current testing state, security posture, known technical debt, and prioritized improvements. Everything here is grounded in the committed code — no items are invented or aspirational without being labeled as such.
 
 ## Contents
+- [Shipped in v0.7.7](#shipped-in-v077)
 - [Shipped in v0.7.6](#shipped-in-v076)
 - [Shipped in v0.7.4](#shipped-in-v074)
 - [Shipped in v0.7.3](#shipped-in-v073)
@@ -17,6 +18,16 @@ Current testing state, security posture, known technical debt, and prioritized i
 - [Security considerations](#security-considerations)
 - [Technical debt](#technical-debt)
 - [Suggested improvements](#suggested-improvements)
+
+## Shipped in v0.7.7
+
+`/api/notams` restored. Closes #66.
+
+- **Every user got "Could not load NOTAMs — API error: 404" from v0.7.4 (2026-10-04) on.** #59 committed the route handler at `src/app/_api_native_disabled/notams/route.ts`. In the App Router a `_` folder is private and is not routed, so production had no `/api/notams`. The iOS and Android shells call the same production URL, so they were broken too.
+
+- **How it got there.** [scripts/native-build.mjs](../scripts/native-build.mjs) moves `src/app/api` aside for the static export and restores it in a `finally`. Its `run()` helper called `process.exit()` on a failed step, which skips `finally`, and Ctrl-C killed the process outright. A failed or interrupted native build therefore left the folder renamed, and that working tree was committed.
+
+- **Fix.** The route is back in `src/app/api/`. `run()` now throws, including when a child dies from a signal. A catch sets `process.exitCode`. No-op SIGINT/SIGTERM listeners keep Ctrl-C from killing the script before `finally` runs. Both paths were verified with a shim `npx`: the old script leaves `_api_native_disabled` behind, and the new one restores `api`. [tests/server/route-layout.test.ts](../tests/server/route-layout.test.ts) now fails CI if the rename is ever committed again.
 
 ## Shipped in v0.7.6
 

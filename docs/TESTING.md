@@ -52,7 +52,7 @@ Source files under `src/lib/**/*.ts` and whether they have a Vitest unit test. "
 | `src/lib/version.ts` | no | Re-export of `package.json#version`. |
 | `src/components/**` | no | No UI test harness yet. The map's decidable logic is deliberately extracted into `map/hit-test.ts` so it can be covered without one; verification of the rendered map is Playwright-by-hand during PR review. |
 | `src/hooks/**` | no | Hooks rely on the React runtime. |
-| `src/app/api/notams/route.ts` | no | Needs KV / rate-limit mocks. |
+| `src/app/api/notams/route.ts` | partly | Handler logic is untested (needs KV / rate-limit mocks). [tests/server/route-layout.test.ts](../tests/server/route-layout.test.ts) pins that the file is where the App Router serves it and that no `_api_native_disabled` leftover from a native build is committed. |
 
 ## What's not covered
 

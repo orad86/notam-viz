@@ -7,6 +7,13 @@
 // native bundles call the production Vercel deployment directly via
 // NEXT_PUBLIC_API_BASE, which is set before invoking this script.
 //
+// Restoring it is load-bearing: `_api_native_disabled` is a private folder in
+// the App Router, so if it is ever committed, production has no /api/notams
+// and every user gets a 404 (shipped in v0.7.4). Nothing inside the try may
+// call process.exit() -- it skips `finally` -- so failures throw instead, and
+// SIGINT/SIGTERM get a listener so Ctrl-C ends the child build rather than
+// killing this process before it can move the folder back.
+//
 // Usage:
 //   node scripts/native-build.mjs          build and sync every scaffolded platform
 //   node scripts/native-build.mjs ios      build and sync iOS only
@@ -64,8 +71,16 @@ function run(cmd, args, env = {}) {
     stdio: 'inherit',
     env: { ...process.env, ...env },
   });
-  if (r.status !== 0) process.exit(r.status ?? 1);
+  if (r.status !== 0) {
+    throw new Error(`${cmd} ${args.join(' ')} failed (${r.signal ?? `exit ${r.status}`})`);
+  }
 }
+
+// Ctrl-C reaches the child too (same process group): it exits, spawnSync
+// returns with `signal` set, and run() throws into the finally below. A
+// SIGTERM sent to this process alone lets the current step finish first.
+process.on('SIGINT', () => {});
+process.on('SIGTERM', () => {});
 
 let moved = false;
 try {
@@ -84,6 +99,9 @@ try {
       );
     }
   }
+} catch (err) {
+  console.error(err.message);
+  process.exitCode = 1;
 } finally {
   if (moved && existsSync(apiDisabled)) {
     renameSync(apiDisabled, apiDir);
