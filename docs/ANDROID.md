@@ -92,7 +92,10 @@ Use an API 36 image; that is what the app targets.
 `npm run android:build` runs the shared `scripts/native-build.mjs`: it moves
 `src/app/api` aside (`output: 'export'` does not emit route handlers),
 builds, regenerates icons, and runs `cap sync android`. Passing no platform
-argument syncs every scaffolded platform at once.
+argument syncs every scaffolded platform at once. It moves the folder back
+even when a step fails or you press Ctrl-C. If `git status` ever shows
+`src/app/_api_native_disabled`, move it back before committing: that path is
+not routed, and committing it takes `/api/notams` down in production.
 
 To inspect the webview, set `webContentsDebuggingEnabled: true` in the
 `android` block of `capacitor.config.ts`, re-sync, and attach
