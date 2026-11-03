@@ -44,7 +44,10 @@ Source files under `src/lib/**/*.ts` and whether they have a Vitest unit test. "
 | `src/lib/notam/route-filter.ts` | yes | [tests/notam/route-filter.test.ts](../tests/notam/route-filter.test.ts) — corridor + altitude band matching. |
 | `src/lib/notam/airports.ts` | no | Static lookup table; covered indirectly by `parser.ts` tests. |
 | `src/lib/server/scraper-mobile.ts` | yes (validators only) | [tests/server/scraper-mobile.test.ts](../tests/server/scraper-mobile.test.ts) — pure WAF validators against captured HTML. The live scrape is exercised in CI by `scripts/scrape.ts`, not from Vitest. |
-| `src/lib/server/{config,kv,log,rate-limit}.ts` | no | Thin wrappers / constants. |
+| `src/lib/server/{config,kv,log,rate-limit,redis}.ts` | no | Thin wrappers / constants. |
+| `src/lib/analytics/{classify,time,store,aggregate}.ts` | yes | [tests/analytics/](../tests/analytics/) — platform classification against real user-agent fixtures (incl. in-app browsers that must *not* count as the apps), Israel-time DST bucketing, the `stats:*` field layout, and dashboard aggregation. `recordLaunch` / `readDays` (Redis I/O) are not unit-tested. |
+| `src/lib/admin/session.ts` | yes | [tests/admin/session.test.ts](../tests/admin/session.test.ts) — config gating, credential comparison, cookie expiry and tamper rejection. Credentials are generated per run; never hardcode credential-like strings. |
+| `src/middleware.ts`, `src/app/admin/` | no | Verified manually against `next build && next start` with a scratch Redis (see docs/OPERATIONS.md §Usage stats). |
 | `src/lib/export/{pdf,kml,gpx,download}.ts` | no | Format builders; covered by manual smoke during PR review. |
 | `src/lib/kml-layer.ts` | no | Browser fetch — needs jsdom + network mock. |
 | `src/lib/aviation-icons.ts` | no | Inline SVG strings + `divIcon` factory; trivial. |
@@ -52,7 +55,7 @@ Source files under `src/lib/**/*.ts` and whether they have a Vitest unit test. "
 | `src/lib/version.ts` | no | Re-export of `package.json#version`. |
 | `src/components/**` | no | No UI test harness yet. The map's decidable logic is deliberately extracted into `map/hit-test.ts` so it can be covered without one; verification of the rendered map is Playwright-by-hand during PR review. |
 | `src/hooks/**` | no | Hooks rely on the React runtime. |
-| `src/app/api/notams/route.ts` | partly | Handler logic is untested (needs KV / rate-limit mocks). [tests/server/route-layout.test.ts](../tests/server/route-layout.test.ts) pins that the file is where the App Router serves it and that no `_api_native_disabled` leftover from a native build is committed. |
+| `src/app/api/notams/route.ts` | partly | Handler logic is untested (needs KV / rate-limit mocks). [tests/server/route-layout.test.ts](../tests/server/route-layout.test.ts) pins that it, `src/app/admin/page.tsx` and `src/middleware.ts` are where Next serves them and that no native-build park (`_api_native_disabled`, `_admin_native_disabled`, `middleware.native-disabled.ts`) is committed. |
 
 ## What's not covered
 

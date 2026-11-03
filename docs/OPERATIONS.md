@@ -9,6 +9,7 @@ Configuration, runtime model, error handling, and operator procedures for notam-
 - [Daily scrape workflow](#daily-scrape-workflow)
 - [Error handling and logging](#error-handling-and-logging)
 - [Rate limiting](#rate-limiting)
+- [Usage stats and admin dashboard](#usage-stats-and-admin-dashboard)
 - [CI](#ci)
 - [Cookie-jar refresh procedure](#cookie-jar-refresh-procedure)
 - [Deployment notes](#deployment-notes)
@@ -18,12 +19,18 @@ Configuration, runtime model, error handling, and operator procedures for notam-
 | Variable | Required by | Purpose |
 |---|---|---|
 | `KV_REST_API_URL` | Next.js app + scraper | Upstash Redis REST endpoint (e.g. `https://<store>.upstash.io`). The API route reads the latest snapshot from this store; the scraper writes to it. |
-| `KV_REST_API_TOKEN` | Next.js app + scraper | Bearer token for the REST endpoint. For the running web app a read-only token is sufficient (`KV_REST_API_READ_ONLY_TOKEN`); the scraper needs write. |
+| `KV_REST_API_TOKEN` | Next.js app + scraper | Bearer token for the REST endpoint. Must be the **write** token: the app writes rate-limit buckets and the `stats:*` usage counters, and the scraper writes the snapshot. |
+| `ADMIN_USERNAME` | Next.js app (production) | Login name for the hidden `/admin` dashboard. Set in Vercel as a *Sensitive* variable, Production only. Never committed: the repo is public. |
+| `ADMIN_PASSWORD` | Next.js app (production) | Password for `/admin`. Same handling as above. |
+| `ADMIN_SESSION_SECRET` | Next.js app (production) | At least 32 random characters (`openssl rand -hex 32`). Signs the admin session cookie. Rotating it logs out every session. |
+| `STATS_RECORD` | Local only | `1` makes a local `next start` count launches. Without it, counting runs only when `VERCEL_ENV=production`, so previews and dev never touch the counters. |
 | `IAA_COOKIE_JAR` | Scraper only | One-line `Cookie:` header from a logged-in Chrome session on `https://brin.iaa.gov.il/MobileAeroinfo/…`. Used as the default starting jar so the scraper can skip the Playwright mint on the fast path. When the WAF rejects these cookies, the scraper falls back to a fresh Playwright mint (see [docs/SCRAPING.md](SCRAPING.md) §Cookie-jar lifecycle). |
 
 A Vercel KV integration auto-injects `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`, `KV_URL`, `REDIS_URL`. Only the first two are read by this codebase.
 
-`.env*.local` is gitignored — do not commit cookie jars or KV tokens.
+`.env*.local` is gitignored — do not commit cookie jars, KV tokens or admin credentials.
+
+If any of the three `ADMIN_*` variables is missing (or the secret is shorter than 32 characters), every `/admin` path answers 404. There is no default value anywhere in code.
 
 ## Config files
 
@@ -41,7 +48,8 @@ No feature-flag system. No per-environment YAML. All behaviour is in code.
 ## Runtime model
 
 - **Process shape.** One Next.js server (Vercel function or self-hosted). The API route is `runtime = 'nodejs'`. Reading `req.headers` for rate-limiting makes the route dynamic — ISR/revalidate don't apply — so all CDN caching is driven by the response `Cache-Control` header (1 h fresh + 24 h stale-while-revalidate).
-- **Data store.** Vercel KV (Upstash Redis) holds exactly one key: `notams:latest`, a single JSON blob of `NotamApiResponse`.
+- **Data store.** Vercel KV (Upstash Redis) holds `notams:latest` (a single JSON blob of `NotamApiResponse`), the short-lived `ratelimit:*` buckets, and one `stats:YYYY-MM-DD` counter hash per day (see [Usage stats](#usage-stats-and-admin-dashboard)).
+- **Middleware.** [src/middleware.ts](../src/middleware.ts) runs on the Edge for `/api/notams` and `/admin/*` only. On Vercel it runs *before* the CDN cache, which is why launch counting lives there and not in the route handler.
 - **Response caching.** `GET /api/notams` responds with `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` — the CDN edge serves most user hits without ever reaching the function.
 - **Scheduling.** Daily GitHub Action. The Vercel function never scrapes.
 - **In-process state.** None for the app. The scraper has a module-scoped `cachedJar` + `jarMintLock` for re-use across retries inside a single run.
@@ -96,7 +104,12 @@ Structured JSON lines via [src/lib/server/log.ts](../src/lib/server/log.ts). One
 | `api.notams.empty_kv` | `durationMs` | API route | KV held no snapshot. 503 returned. |
 | `api.notams.rate_limited` | `key`, `retryAfterSec` | API route | 429 returned. `key` is the client network block (IPv4 /24 or IPv6 /64), masked before emission to keep logs below a raw-IP retention profile. Rate-limit bucketing inside Upstash still uses the full IP. |
 | `api.notams.error` | `message`, `durationMs` | API route | 500 returned. |
-| `ratelimit.unavailable` | `message` | API route | Upstash limiter threw; request was allowed (fail-open). |
+| `ratelimit.unavailable` | `message`, `limiter?` | API route / admin login | Upstash limiter threw. NOTAM requests are allowed (fail-open); with `limiter: 'admin'` the login attempt is refused (fail-closed). |
+| `analytics.record.failed` | `message` | Middleware | Writing a launch counter failed. The request itself was unaffected. Logged at most once a minute per instance. |
+| `admin.login.succeeded` | `key` | Admin login | Successful sign-in. `key` is the masked network block. Credentials are never logged. |
+| `admin.login.failed` | `key` | Admin login | Wrong username or password. |
+| `admin.login.rate_limited` | `key` | Admin login | More than 5 attempts in a minute from this client. |
+| `admin.stats.read_failed` | `message` | `/admin` | Reading the counters failed; the dashboard shows an "unavailable" banner. |
 
 ## Rate limiting
 
@@ -115,6 +128,35 @@ Cache-Control: no-store
 **Fail-open semantics.** If the Upstash backend is unreachable, the limiter throws, [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts) catches, logs `ratelimit.unavailable`, and allows the request. Rationale: a temporarily-unreachable limiter is a worse outcome than a permissive one for a public NOTAM feed.
 
 Tuning the limit: edit `LIMIT` and `WINDOW` constants at the top of `src/lib/server/rate-limit.ts`. No env knob — changing these is a deliberate code change that should go through review.
+
+## Usage stats and admin dashboard
+
+A hidden, password-protected page at `/admin` shows how the app is used: launches over a 7/30/90-day range with the change against the previous period, launches today, daily launches by platform, a weekday × hour heatmap (Israel time), the platform split, and the top 10 cities. Nothing links to it, it is `noindex`, and it is web-only: it is not part of the iOS or Android bundles.
+
+**What is counted.** Every `GET /api/notams` is one launch: the apps and the website each fetch it once per start. [src/middleware.ts](../src/middleware.ts) classifies the request and increments counters after the response has been handed back (`waitUntil`), so it adds no latency and cannot fail the request.
+
+| Platform | Rule |
+|---|---|
+| `bot` | Missing user agent, or one matching a crawler/tool pattern (`bot`, `curl`, `python`, …). |
+| `ios` | `Origin: capacitor://localhost` (the iOS shell's scheme). |
+| `android` | `Origin: https://localhost` (the Android shell's scheme). |
+| `web` | Everything else. |
+
+The apps are told apart by Origin only, never by user agent: in-app browsers (Instagram, Gmail) share the WebView user-agent traits and would otherwise be counted as the apps.
+
+**Storage.** One Redis hash per Israel-local day, expiring after 400 days:
+
+```
+stats:2026-11-03
+  h:14:ios     -> 12     launches in the 14:00 hour from the iOS app
+  city:Haifa   -> 31     launches located in Haifa (bots excluded)
+```
+
+Three Redis commands per launch (two for bots). No IP address, user agent, identifier or per-launch record is stored; the city comes from Vercel's IP geolocation and the IP itself is never read. To wipe the history, delete the `stats:*` keys — the snapshot and rate limiter are unaffected.
+
+**Access.** `/admin/login` takes the username and password from the `ADMIN_*` environment variables (see [Environment variables](#environment-variables)) and sets an 8-hour, HttpOnly, Secure, SameSite=Strict cookie scoped to `/admin`, signed with `ADMIN_SESSION_SECRET`. Login attempts are limited to 5 per minute per client and that limiter fails closed. To change the credentials, update the variables in Vercel and redeploy; to force every session out, also rotate `ADMIN_SESSION_SECRET`.
+
+**Local check.** `.env.local` holds the production Upstash token, so do not run with `STATS_RECORD=1` against it — the test launches would land in the real counters. Point `KV_REST_API_URL` at a scratch store instead.
 
 ## CI
 

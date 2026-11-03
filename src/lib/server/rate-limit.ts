@@ -1,7 +1,7 @@
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 import { log } from './log';
+import { getRedis } from './redis';
 
 // Sliding window of 30 requests / minute per client key. The public NOTAM
 // snapshot is 1 KV fetch + JSON, but unrate-limited scraping still heats up
@@ -11,22 +11,36 @@ const LIMIT = 30;
 const WINDOW: Parameters<typeof Ratelimit.slidingWindow>[1] = '1 m';
 const FALLBACK_RESET_MS = 60_000;
 
+// Admin login attempts: 5 / minute per client key. Brute-forcing the admin
+// password is the one thing this limiter exists to stop, so unlike the NOTAM
+// limiter it fails CLOSED when Upstash is unreachable.
+const ADMIN_LOGIN_LIMIT = 5;
+const ADMIN_LOGIN_WINDOW: Parameters<typeof Ratelimit.slidingWindow>[1] = '1 m';
+
 // Initialized once at module scope (Fluid Compute reuses the instance across
 // warm requests). Falls back to a no-op if env vars are missing — this keeps
 // `next build` and local dev workable without a rate-limit backend.
-let limiter: Ratelimit | null = null;
-if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-  const redis = new Redis({
-    url: process.env.KV_REST_API_URL,
-    token: process.env.KV_REST_API_TOKEN,
-  });
-  limiter = new Ratelimit({
+function makeLimiter(
+  limit: number,
+  window: Parameters<typeof Ratelimit.slidingWindow>[1],
+  prefix: string,
+): Ratelimit | null {
+  const redis = getRedis();
+  if (!redis) return null;
+  return new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(LIMIT, WINDOW),
+    limiter: Ratelimit.slidingWindow(limit, window),
     analytics: false,
-    prefix: 'ratelimit:notams',
+    prefix,
   });
 }
+
+const limiter = makeLimiter(LIMIT, WINDOW, 'ratelimit:notams');
+const adminLoginLimiter = makeLimiter(
+  ADMIN_LOGIN_LIMIT,
+  ADMIN_LOGIN_WINDOW,
+  'ratelimit:admin',
+);
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -62,6 +76,24 @@ export async function checkRateLimit(key: string): Promise<RateLimitResult> {
   }
 }
 
+export async function checkAdminLoginRateLimit(key: string): Promise<RateLimitResult> {
+  const resetAt = Date.now() + FALLBACK_RESET_MS;
+  // No backend configured (local dev): nothing to enforce against.
+  if (!adminLoginLimiter) {
+    return { allowed: true, limit: ADMIN_LOGIN_LIMIT, remaining: ADMIN_LOGIN_LIMIT, resetAt };
+  }
+  try {
+    const { success, limit, remaining, reset } = await adminLoginLimiter.limit(key);
+    return { allowed: success, limit, remaining, resetAt: reset };
+  } catch (err) {
+    log('warn', 'ratelimit.unavailable', {
+      limiter: 'admin',
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { allowed: false, limit: ADMIN_LOGIN_LIMIT, remaining: 0, resetAt };
+  }
+}
+
 // Derive a per-IP rate-limit key from the request. Priority:
 //   1. `request.ip` — populated by Vercel from the verified TCP peer; cannot
 //      be spoofed by the client.
@@ -73,14 +105,18 @@ export async function checkRateLimit(key: string): Promise<RateLimitResult> {
 // is client-controllable and should not be trusted; callers in that posture
 // must strip the header before it reaches the app.
 export function clientKeyFromRequest(req: NextRequest): string {
-  const ip = req.ip;
-  if (ip) return ip;
-  const fwd = req.headers.get('x-forwarded-for');
+  return req.ip || clientKeyFromHeaders(req.headers);
+}
+
+// Same priority list minus `request.ip`, for callers that only have headers
+// (server actions, via `headers()` from next/headers).
+export function clientKeyFromHeaders(headers: Headers): string {
+  const fwd = headers.get('x-forwarded-for');
   if (fwd) {
     const first = fwd.split(',')[0]?.trim();
     if (first) return first;
   }
-  const real = req.headers.get('x-real-ip');
+  const real = headers.get('x-real-ip');
   if (real) return real.trim();
   return 'anon';
 }

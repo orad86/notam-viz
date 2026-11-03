@@ -1,7 +1,7 @@
 # NOTAM Visualizer — Privacy Notice
 
-**Effective Date**: 2026-09-28
-**Version**: 1.1
+**Effective Date**: 2026-11-03
+**Version**: 1.2
 
 NOTAM Visualizer is a public, read-only viewer, available as a website and as native apps for iOS and Android. It does not offer accounts and does not collect profile information. This notice describes the limited operational data the Service handles, and applies equally to the website and to both apps.
 
@@ -11,7 +11,7 @@ NOTAM Visualizer is a public, read-only viewer, available as a website and as na
 - No name, email, phone, or contact details.
 - No pilot profile, aircraft information, or flight plan data.
 - No advertising identifiers.
-- No third-party analytics scripts.
+- No third-party analytics scripts, and no tracking of individual users. See section 2.6 for the anonymous usage counts we keep.
 - No cookies set by the application itself.
 - No device location. See section 2.4.
 
@@ -19,7 +19,7 @@ NOTAM Visualizer is a public, read-only viewer, available as a website and as na
 
 ### 2.1. IP address for rate limiting
 
-The `/api/notams` endpoint applies a per-IP rate limit of 30 requests per minute, backed by Upstash Redis. Your IP address is used only to enforce this limit. Rate-limit entries expire on the order of a minute and are not used for profiling.
+The `/api/notams` endpoint applies a per-IP rate limit of 30 requests per minute, backed by Upstash Redis. Your IP address is used only to enforce this limit. Rate-limit entries expire on the order of a minute and are not used for profiling or for the usage counts in section 2.6.
 
 ### 2.2. Platform request logs
 
@@ -41,6 +41,15 @@ For the purposes of Apple's privacy nutrition label and Google Play's Data safet
 
 Exports to PDF, GPX, and KML are generated on your device from data already on screen. In the apps they are written to your device's Documents folder and offered to the system share sheet, which you control. Nothing about an export is sent to the Service.
 
+### 2.6. Anonymous usage counts
+
+To understand when and on which platform the Service is used, the server counts each time the NOTAM feed is loaded (once per app or website start). Each load adds one to a set of totals:
+
+- the hour (Israel time) and the platform: iOS app, Android app, website, or automated client;
+- the city, as estimated by the hosting platform from the request's IP address.
+
+Only these running totals are stored, in Upstash Redis, and they are deleted after 400 days. Your IP address, user agent, device identifiers and the time of any individual visit are not stored, and the totals cannot be linked back to you or to a device. Nothing is collected on your device and no cookie is set for this.
+
 ## 3. Data we publish
 
 NOTAM content shown by the Service is published by the Israeli Airports Authority on its public mobile AeroInfo endpoint. NOTAM Visualizer mirrors that content and adds derived fields (parsed coordinates, category classification, human-readable summary). Every visitor sees the same snapshot.
@@ -48,7 +57,7 @@ NOTAM content shown by the Service is published by the Israeli Airports Authorit
 ## 4. Third parties
 
 - **Vercel** — hosts the application and runs the scheduled scrape. Subject to Vercel's privacy practices.
-- **Upstash (Vercel Marketplace)** — stores the NOTAM snapshot and the rate-limit counter. Subject to Upstash's privacy practices.
+- **Upstash (Vercel Marketplace)** — stores the NOTAM snapshot, the rate-limit counter, and the anonymous usage totals (section 2.6). Subject to Upstash's privacy practices.
 - **Israeli Airports Authority** — origin of the NOTAM content.
 - **OpenStreetMap** — serves the base map tiles. When the map loads, your browser issues standard HTTPS requests to OpenStreetMap's tile servers, which may log IP and user agent under their policy.
 

@@ -2,13 +2,15 @@
 // Build the static bundle that ships inside the Capacitor native shells
 // (iOS and Android).
 //
-// `next export` (output: 'export') does not emit route handlers, so the
-// `/api/notams` handler is moved aside for the duration of the build. The
-// native bundles call the production Vercel deployment directly via
+// `next export` (output: 'export') does not emit route handlers, middleware,
+// server actions or dynamic pages, so everything server-only is moved aside
+// for the duration of the build (SERVER_ONLY below): the `/api/notams`
+// handler, the hidden `/admin` dashboard, and `src/middleware.ts`. The native
+// bundles call the production Vercel deployment directly via
 // NEXT_PUBLIC_API_BASE, which is set before invoking this script.
 //
-// Restoring it is load-bearing: `_api_native_disabled` is a private folder in
-// the App Router, so if it is ever committed, production has no /api/notams
+// Restoring them is load-bearing: `_api_native_disabled` is a private folder
+// in the App Router, so if it is ever committed, production has no /api/notams
 // and every user gets a 404 (shipped in v0.7.4). Nothing inside the try may
 // call process.exit() -- it skips `finally` -- so failures throw instead, and
 // SIGINT/SIGTERM get a listener so Ctrl-C ends the child build rather than
@@ -25,8 +27,13 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const apiDir = resolve(repo, 'src/app/api');
-const apiDisabled = resolve(repo, 'src/app/_api_native_disabled');
+// [live path, parked path]. tests/server/route-layout.test.ts fails CI if any
+// parked path is ever committed.
+const SERVER_ONLY = [
+  ['src/app/api', 'src/app/_api_native_disabled'],
+  ['src/app/admin', 'src/app/_admin_native_disabled'],
+  ['src/middleware.ts', 'src/middleware.native-disabled.ts'],
+].map(([from, to]) => ({ from: resolve(repo, from), to: resolve(repo, to), moved: false }));
 
 const ALL_PLATFORMS = ['ios', 'android'];
 
@@ -82,11 +89,12 @@ function run(cmd, args, env = {}) {
 process.on('SIGINT', () => {});
 process.on('SIGTERM', () => {});
 
-let moved = false;
 try {
-  if (existsSync(apiDir)) {
-    renameSync(apiDir, apiDisabled);
-    moved = true;
+  for (const entry of SERVER_ONLY) {
+    if (existsSync(entry.from)) {
+      renameSync(entry.from, entry.to);
+      entry.moved = true;
+    }
   }
   run('npx', ['next', 'build'], { NATIVE_BUILD: '1' });
   run('npm', ['run', 'icons']);
@@ -103,7 +111,9 @@ try {
   console.error(err.message);
   process.exitCode = 1;
 } finally {
-  if (moved && existsSync(apiDisabled)) {
-    renameSync(apiDisabled, apiDir);
+  for (const entry of SERVER_ONLY) {
+    if (entry.moved && existsSync(entry.to)) {
+      renameSync(entry.to, entry.from);
+    }
   }
 }

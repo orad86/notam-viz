@@ -18,3 +18,12 @@ export const KV_LATEST_KEY = 'notams:latest';
 // cushion if the scrape is late or KV is briefly unreachable.
 export const CACHE_MAX_AGE_SECONDS = 3600;
 export const CACHE_STALE_SECONDS = 86400;
+
+// Anonymous usage counters written by src/middleware.ts and read by /admin.
+// One hash per Israel-local calendar day: `stats:2026-11-03`. Fields are
+// `h:{hour}:{platform}` and `city:{name}`; nothing per-launch, no IP. See
+// docs/OPERATIONS.md §Usage stats.
+export const STATS_KEY_PREFIX = 'stats:';
+export const STATS_TTL_SECONDS = 400 * 86400;
+export const STATS_TZ = 'Asia/Jerusalem';
+export const STATS_TOP_CITIES = 10;
