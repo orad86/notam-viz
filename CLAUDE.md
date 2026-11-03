@@ -14,6 +14,13 @@ Single source of truth: `src/lib/server/config.ts`. Don't re-inline the IAA base
 
 Use `log(level, event, fields)` from `src/lib/server/log.ts`. Events are dotted strings (`scrape.list.fetched`, `api.notams.served`). JSON lines go to stdout (info) or stderr (warn/error); Vercel and GitHub Actions both surface them inline.
 
+## Usage stats and /admin
+
+- **Launch counting lives in `src/middleware.ts`, not the route,** because on Vercel middleware runs before the CDN cache and `/api/notams` is a cache hit for most launches. Counting is inside `waitUntil` and must never throw or delay the response. Anonymous counters only (`stats:YYYY-MM-DD` hashes): never store an IP, user agent or per-launch record — `PRIVACY.md` §2.6 promises that.
+- **The apps are identified by `Origin` only** (`capacitor://localhost` = iOS, `https://localhost` = Android). Do not add user-agent fallbacks; in-app browsers share the WebView UA traits.
+- **Admin credentials are env-only** (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`). The repo is public: no defaults, no sample values in docs or tests, never log what was typed. Missing config means `/admin` 404s.
+- **Never link to `/admin`** and do not list it in `robots.txt`. `public/sw.js` bypasses `/admin` so the dashboard is never served from cache.
+
 ## Rate limiting
 
 `/api/notams` is behind `@upstash/ratelimit` (30 req/min per IP). Helper in `src/lib/server/rate-limit.ts`. Fail-open on backend unavailability — NOTAMs are more valuable than strict enforcement.
@@ -47,7 +54,7 @@ The visual language is the shared house theme from `orad86/skytutor-agent` ("sec
 
 ## Native shells
 
-`ios/` and `android/` are both committed and both wrap the same static export from `scripts/native-build.mjs`. See `docs/IOS.md` and `docs/ANDROID.md`.
+`ios/` and `android/` are both committed and both wrap the same static export from `scripts/native-build.mjs`. See `docs/IOS.md` and `docs/ANDROID.md`. The export cannot hold server-only code, so the script parks `src/app/api`, `src/app/admin` and `src/middleware.ts` for the build; add any new server-only path to its `SERVER_ONLY` list and to `tests/server/route-layout.test.ts`.
 
 - **Never commit `src/app/_api_native_disabled`.** The native build moves `src/app/api` there for the static export and moves it back afterwards. A `_` folder is private in the App Router, so committing it removes `/api/notams` from production. That shipped in v0.7.4 and every user got "API error: 404" until v0.7.7. The script now restores the folder on failure and on Ctrl-C, and `tests/server/route-layout.test.ts` fails CI if the rename is committed. Keep `process.exit()` out of the script's `try`, because it skips `finally`.
 - **Never commit signing material.** `android/key.properties`, any `.jks` or `.keystore`, and `.env.local` are gitignored. Check `git status` before committing anything under `android/`.

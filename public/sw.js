@@ -45,6 +45,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // The hidden usage dashboard is always live data. Without this, the RSC
+  // fetches next/link makes when switching ranges fall through to cacheFirst
+  // below and the dashboard would keep showing the first numbers it loaded.
+  if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return;
+
   if (url.pathname === API_PATH) {
     event.respondWith(networkFirst(req));
     return;

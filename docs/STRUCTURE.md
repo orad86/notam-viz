@@ -30,7 +30,7 @@ src/
 │   ├── map/        Leaflet map. See docs/ARCHITECTURE.md for the click model.
 │   └── detail/     NOTAM detail: bottom sheet on mobile, docked panel at md.
 ├── hooks/          Custom React hooks (useThing.ts, camelCase).
-├── lib/            Non-React logic. Three domains: notam/, export/, server/.
+├── lib/            Non-React logic. Domains: notam/, export/, server/, analytics/, admin/.
 └── types/          Shared TypeScript types (notam.ts).
 ```
 
@@ -48,6 +48,13 @@ src/lib/
 │   ├── decode.ts           Plain-language decoding: headline + ICAO contractions.
 │   ├── geometry.ts         Pure NOTAM-geometry math (bbox area, …).
 │   └── route-filter.ts     Route corridor + altitude band matching.
+├── analytics/      Anonymous launch counters (Edge-safe; used by src/middleware.ts and /admin).
+│   ├── classify.ts         Request → ios | android | web | bot; city normalisation.
+│   ├── time.ts             Israel-local date/hour and date arithmetic.
+│   ├── store.ts            stats:YYYY-MM-DD hash layout, record + read.
+│   └── aggregate.ts        Daily hashes → dashboard KPIs, series, heatmap, cities.
+├── admin/
+│   └── session.ts          Env-only admin config, credential check, signed session cookie.
 ├── export/         Selection → file-format builders.
 │   ├── pdf.ts              HTML cards rendered into a printable PDF.
 │   ├── kml.ts              Google-Earth KML.
@@ -57,7 +64,8 @@ src/lib/
     ├── config.ts           IAA URLs, KV keys, cache windows. Single source of truth.
     ├── kv.ts               Vercel KV reads/writes for cached NOTAMs.
     ├── log.ts              Structured JSON log() helper.
-    ├── rate-limit.ts       Upstash rate-limit guard for the public API.
+    ├── rate-limit.ts       Upstash rate-limit guards (public API, admin login).
+    ├── redis.ts            Shared @upstash/redis client (Node + Edge).
     └── scraper-mobile.ts   Playwright-driven IAA mobile scraper (run by scripts/scrape.ts in CI).
 ```
 
@@ -85,7 +93,9 @@ tests/
 ├── fixtures/       Real HTML / NOTAM blocks captured from past scrapes.
 ├── map/            Mirrors src/components/map/. (Pure modules only — no UI tests.)
 ├── notam/          Mirrors src/lib/notam/.
-└── server/         Mirrors src/lib/server/. (Currently scraper validators only.)
+├── server/         Mirrors src/lib/server/. Scraper validators and the route-layout guard.
+├── analytics/      Mirrors src/lib/analytics/.
+└── admin/          Mirrors src/lib/admin/.
 ```
 
 One `*.test.ts` per source module. See [TESTING.md](TESTING.md) for the coverage matrix and conventions.

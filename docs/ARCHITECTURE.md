@@ -101,6 +101,8 @@ Two separate flows.
 3. On hit → responds 200 with `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`. On miss (empty KV) → 503 `{ errors: ['No cached NOTAMs in KV yet — run the scrape workflow'] }`. On throw → 500 with the error message.
 4. Page stores the parsed list in React state and renders.
 
+Before step 2, [src/middleware.ts](../src/middleware.ts) counts the request as one launch (platform, Israel-local hour, city) in a `stats:YYYY-MM-DD` hash, inside `waitUntil` so the response is not delayed. It runs ahead of the CDN cache, so cache hits are counted too. See [docs/OPERATIONS.md](OPERATIONS.md) §Usage stats and admin dashboard.
+
 ## Module breakdown
 
 ### `src/app/`
@@ -134,7 +136,18 @@ Server-only modules. Run on Node, read env vars, talk to KV / Upstash / Playwrig
 - [src/lib/server/kv.ts](../src/lib/server/kv.ts) — thin Upstash REST client: `getLatestNotams`, `setLatestNotams`.
 - [src/lib/server/config.ts](../src/lib/server/config.ts) — single source of truth for upstream URLs (`IAA_BASE`, `IAA_LIST_URL`, `iaaDetailUrl`), the KV key (`KV_LATEST_KEY`), and cache windows (`CACHE_MAX_AGE_SECONDS`, `CACHE_STALE_SECONDS`). Imported by the scraper, the API route, and `scripts/scrape.ts`.
 - [src/lib/server/log.ts](../src/lib/server/log.ts) — structured JSON-line logger. `log(level, event, fields)` emits one record per call to stdout (info/debug) or stderr (warn/error). `timer(event)` returns a closure that logs duration on invocation.
-- [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts) — `@upstash/ratelimit` sliding window (30/min per IP), fail-open on backend unavailability. `clientKeyFromRequest` derives the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
+- [src/lib/server/rate-limit.ts](../src/lib/server/rate-limit.ts) — `@upstash/ratelimit` sliding windows: 30/min per IP for `/api/notams` (fail-open) and 5/min for admin logins (fail-closed). `clientKeyFromRequest` / `clientKeyFromHeaders` derive the bucket key from `req.ip` → `x-forwarded-for` → `x-real-ip` → `'anon'`; `maskIpForLog` truncates to /24 or /64 for log emission.
+- [src/lib/server/redis.ts](../src/lib/server/redis.ts) — the shared `@upstash/redis` client (`getRedis()`, null without env vars). Fetch-based, so it serves both the Node route and the Edge middleware.
+
+### `src/lib/analytics/` and `src/lib/admin/`
+
+Usage counters and the admin gate. Edge-safe (no Node APIs), so the middleware can import them.
+
+- [src/lib/analytics/classify.ts](../src/lib/analytics/classify.ts) — `classifyPlatform(origin, userAgent)` → `ios | android | web | bot`; `normalizeCity`. Pure.
+- [src/lib/analytics/time.ts](../src/lib/analytics/time.ts) — Israel-local `localTime`, `addDays`, `lastNDates`, `weekdayOf`.
+- [src/lib/analytics/store.ts](../src/lib/analytics/store.ts) — the `stats:*` hash layout: `launchFields` (pure), `recordLaunch`, `readDays`.
+- [src/lib/analytics/aggregate.ts](../src/lib/analytics/aggregate.ts) — `summarize()` turns daily hashes into the dashboard's KPIs, series, heatmap and city ranking. Pure.
+- [src/lib/admin/session.ts](../src/lib/admin/session.ts) — `adminConfig()` (null unless all `ADMIN_*` env vars are set), constant-time `credentialsMatch`, and the HMAC-signed session cookie (`signSession` / `verifySession`), all on Web Crypto.
 
 ### `src/lib/export/`
 
@@ -166,6 +179,7 @@ Custom React hooks. `useThing.ts` (camelCase) per project convention.
 - [src/app/support/page.tsx](../src/app/support/page.tsx) — public Support page (statically rendered). Quick start, filtering, route planner, exports, position layer, troubleshooting, contact. Used as the App Store Connect Support URL.
 - [src/app/privacy/page.tsx](../src/app/privacy/page.tsx) — renders `PRIVACY.md` via `renderMarkdown`. Used as the App Store Connect Privacy Policy URL.
 - [src/app/terms/page.tsx](../src/app/terms/page.tsx) — renders `TERMS.md` via `renderMarkdown`.
+- [src/app/admin/](../src/app/admin/) — the hidden usage dashboard (`page.tsx`, dynamic), its login page, and the `login` / `logout` server actions. Charts are server-rendered from [src/components/admin/](../src/components/admin/) with no client JS. Never linked; excluded from the native build.
 
 ### `src/components/`
 
@@ -206,6 +220,7 @@ All `'use client'`.
 ### `scripts/`
 
 - [scripts/scrape.ts](../scripts/scrape.ts) — one-shot CLI: scrape → parse → `setLatestNotams`. Invoked by the GitHub Action and for manual local refreshes.
+- [scripts/native-build.mjs](../scripts/native-build.mjs) — static export for the Capacitor shells. Parks every server-only path (`src/app/api`, `src/app/admin`, `src/middleware.ts`) for the build and restores them in `finally`.
 
 ### `.github/workflows/`
 
@@ -215,7 +230,8 @@ All `'use client'`.
 ### Tests
 
 - [tests/notam/](../tests/notam/) — Vitest unit tests for each NOTAM-domain module: `parser`, `coord-parser`, `qcodes`, `altitude`, `format`, `geometry`, `route-filter`. Mirror `src/lib/notam/`.
-- [tests/server/](../tests/server/) — Vitest tests for server-only modules. Currently the scraper's positive-signal WAF validators (`scraper-mobile.test.ts`).
+- [tests/server/](../tests/server/) — Vitest tests for server-only modules: the scraper's positive-signal WAF validators (`scraper-mobile.test.ts`) and the route-layout guard that fails if a native-build park is committed (`route-layout.test.ts`).
+- [tests/analytics/](../tests/analytics/) and [tests/admin/](../tests/admin/) — platform classification, Israel-time bucketing, the counter layout, aggregation, and the admin session/credential checks.
 - [tests/fixtures/iaa/](../tests/fixtures/iaa/) — captured HTML shapes used by the scraper validator tests.
 
 See [docs/TESTING.md](TESTING.md) for the coverage matrix and conventions.
