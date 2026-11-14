@@ -69,7 +69,7 @@ Vitest. `npm run test` locally; CI workflow is `.github/workflows/ci.yml`. See `
 
 ## What not to touch without a plan
 
-- `.github/workflows/scrape.yml` — production cron hitting live IAA site. Changes here can silently break the daily snapshot.
+- `.github/workflows/scrape.yml` — production cron hitting live IAA site. Changes here can silently break the daily snapshot. **Currently disabled** (`gh workflow disable`): the IAA moved to `aeroinfo.iaa.gov.il/Notams` behind Radware, and the snapshot is published by hand with `npm run import:manual` (see `docs/OPERATIONS.md` §Manual NOTAM import). Do not re-enable it until the scraper targets the new page.
 - `IAA_COOKIE_JAR` — session token; never log the full value, and never commit `.env.local`.
 - `src/lib/notam/airports.ts` — the coordinates and names are known to be wrong (`LLIB` is labelled Eilat but sits in Jerusalem; `LLER` conflicts with the KML). It is the last-resort geometry fallback, so NOTAMs pin there. Fixing it needs a verified aerodrome source; tracked separately. The decoder deliberately shows the ICAO code from the NOTAM rather than a name from this table.
 

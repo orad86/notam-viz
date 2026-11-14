@@ -7,6 +7,7 @@ Configuration, runtime model, error handling, and operator procedures for notam-
 - [Config files](#config-files)
 - [Runtime model](#runtime-model)
 - [Daily scrape workflow](#daily-scrape-workflow)
+- [Manual NOTAM import (emergency)](#manual-notam-import-emergency)
 - [Error handling and logging](#error-handling-and-logging)
 - [Rate limiting](#rate-limiting)
 - [Usage stats and admin dashboard](#usage-stats-and-admin-dashboard)
@@ -79,6 +80,21 @@ gh workflow run "Daily NOTAM scrape"       # from GitHub CLI
 # Locally (overwrites production KV — use with care):
 npx tsx scripts/scrape.ts
 ```
+
+## Manual NOTAM import (emergency)
+
+**Current state (since 2026-11-14): the daily scrape is disabled.** The IAA moved its NOTAM page from `brin.iaa.gov.il/MobileAeroinfo` to https://aeroinfo.iaa.gov.il/Notams, which sits behind Radware bot protection, and every scrape from 2026-11-10 failed with `WafChallengeError` (#70). Until there is a scraper for the new site, the snapshot is published by hand. Re-enable the cron with `gh workflow enable scrape.yml` only once the scraper targets the new page.
+
+1. Open https://aeroinfo.iaa.gov.il/Notams in a normal browser and **expand every entry** (`▼`). Collapsed entries carry only a 3-line preview, not the ICAO text.
+2. Select the whole page, from "Aeronautical Information Services" down to "Total number of Notams: N", and save it as a text file outside the repo.
+3. Dry run, then publish (reads `KV_REST_API_URL` / `KV_REST_API_TOKEN` from `.env.local`):
+
+```bash
+npm run import:manual -- ~/notams.txt --dry-run
+npm run import:manual -- ~/notams.txt
+```
+
+The script ([scripts/import-manual.ts](../scripts/import-manual.ts)) extracts each `(A0897/26 NOTAMR … )` block, strips the outer parentheses the site adds, parses it with the same `parseNotamBlock` the scraper uses, and writes `notams:latest` in the same payload shape (`source` is the new page URL, `fetchedAt` is the import time). It refuses to write if any entry was copied without its ICAO text, if the block count disagrees with "Total number of Notams", or if any block fails to parse. The CDN caches `/api/notams` for up to an hour, so a new import can take that long to show up.
 
 ## Error handling and logging
 
