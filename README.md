@@ -12,7 +12,7 @@ Interactive map viewer for Israeli Airports Authority (IAA) NOTAMs. A GitHub Act
 - **Export** to PDF, GPX, or KML from an always-visible pill in the filter bar. Scope follows selection: checked rows export as a subset; otherwise the current filtered view is used.
 - **Device location + aircraft marker.** `My position` in the header requests Geolocation, drops a rotating aircraft icon at your fix, and draws an accuracy circle. Fix stays on-device — never transmitted.
 - **Installable PWA / native apps.** Web app ships a manifest + service worker (last-response cache for `/api/notams`, offline shell). Capacitor wrappers in `ios/` and `android/` bundle the same UI as native apps for the App Store and Google Play — see [docs/IOS.md](docs/IOS.md) and [docs/ANDROID.md](docs/ANDROID.md).
-- **Data ops.** Daily GitHub Action scrapes IAA → Upstash Redis. API route reads with `s-maxage=3600, stale-while-revalidate=86400`, rate-limited at 30 req/min per IP.
+- **Data ops.** Daily GitHub Action scrapes IAA → Upstash Redis (temporarily disabled since the IAA moved its NOTAM page; the snapshot is imported by hand — see [docs/OPERATIONS.md](docs/OPERATIONS.md#manual-notam-import-emergency)). API route reads with `s-maxage=3600, stale-while-revalidate=86400`, rate-limited at 30 req/min per IP.
 - **Tested and gated.** Vitest suite pinning parsers, coord extraction, Q-code mapping, route filter, and scraper validators. CI runs `lint`, `typecheck`, `test` on every PR.
 
 ## What it is not

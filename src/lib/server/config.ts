@@ -6,6 +6,10 @@ export const IAA_BASE = 'https://brin.iaa.gov.il/MobileAeroinfo';
 export const IAA_LIST_URL = `${IAA_BASE}/maiNotam.aspx`;
 export const IAA_WELCOME_URL = `${IAA_BASE}/maiwelcome.aspx`;
 
+// The IAA's current NOTAM page. Behind Radware bot protection, so it is
+// imported by hand (scripts/import-manual.ts) rather than scraped.
+export const IAA_NOTAMS_URL = 'https://aeroinfo.iaa.gov.il/Notams';
+
 export function iaaDetailUrl(rowID: string): string {
   return `${IAA_BASE}/maiDetails.aspx?rowID=${encodeURIComponent(rowID)}&scrpos=0&mode=notam`;
 }
